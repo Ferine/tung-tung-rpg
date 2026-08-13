@@ -2,8 +2,12 @@
 
 ## Supported versions
 
-This project has no released versions yet. Security fixes are made on the
-default branch.
+| Version | Supported |
+|---|---|
+| 0.001 | Yes |
+
+Security fixes are made on the default branch and included in subsequent
+releases.
 
 ## Reporting a vulnerability
 

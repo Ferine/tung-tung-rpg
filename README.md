@@ -17,6 +17,9 @@ declaration is what a mapper and an emulator read, and the size is deliberate,
 not filled. The ROM itself is a build artifact and is intentionally not stored
 in the repository.
 
+The current prebuilt ROM is available from the
+[v0.001 release](https://github.com/Ferine/tung-tung-rpg/releases/tag/v0.001).
+
 ## Build
 
 Prerequisites:

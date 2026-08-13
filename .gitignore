@@ -34,6 +34,9 @@ linkfile
 *.state
 *.state[0-9]*
 
+# Locally assembled release bundles
+/dist/
+
 # Generated soundbank output (rebuilt from res/*.it by make)
 res/soundbank.asm
 res/soundbank.bnk
