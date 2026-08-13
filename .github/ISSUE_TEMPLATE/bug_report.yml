@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible gameplay, build, or tooling problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to make the problem reproducible.
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+      description: Commit SHA, branch, or release where the problem occurs.
+      placeholder: e.g. main at abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Emulator
+        - Original or compatible hardware
+        - Build or asset tooling
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment_details
+    attributes:
+      label: Environment details
+      description: Emulator/core and version, flash cartridge, OS, Python, or pvsneslib revision as relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Build or start the game with ...
+        2. ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional evidence
+      description: Add logs, screenshots, or a save file if they do not contain sensitive information.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I am not reporting a security vulnerability publicly.
+          required: true

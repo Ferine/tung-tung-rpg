@@ -1,0 +1,56 @@
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# pvsneslib compiler, linker, and ROM output
+*.obj
+*.ps
+src/*.asm
+linkfile
+*.dbg
+*.log
+*.sfc
+*.smc
+*.sym
+*.symfull
+
+# Emulator state and save data
+*.srm
+*.sav
+*.state
+*.state[0-9]*
+
+# Generated soundbank output (rebuilt from res/*.it by make)
+res/soundbank.asm
+res/soundbank.bnk
+res/soundbank.h
+
+# Pinned CC0 source recordings are fetched on demand
+samples/*.wav
+
+# Generated previews and development capture sequences
+*-preview.png
+preview-*.png
+shots/*
+!shots/title_final.png
+!shots/battle.png
+b3/
+bat/
+bat2/
+v2/
+v3/
+walk/

@@ -1,0 +1,26 @@
+* text=auto eol=lf
+
+*.anm binary
+*.bnk binary
+*.col binary
+*.it binary
+*.map binary
+*.pal binary
+*.pic binary
+*.png binary
+*.sfc binary
+*.smc binary
+*.tbl binary
+*.wav binary
+
+# These are deterministic products of the Python asset pipeline.
+bgdata.asm linguist-generated=true
+hdmadata.asm linguist-generated=true
+worlddata.asm linguist-generated=true
+res/music.h linguist-generated=true
+src/bgmap.h linguist-generated=true
+src/gfxmap.h linguist-generated=true
+src/hdmamap.h linguist-generated=true
+src/sprmap.h linguist-generated=true
+src/titlemap.h linguist-generated=true
+src/worldmap.h linguist-generated=true
