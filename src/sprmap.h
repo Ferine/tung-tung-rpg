@@ -29,6 +29,23 @@
 #define OPAL_ENEMY  P_ENEMY
 #define OPAL_BOSS   P_BOSS
 
+/* The sleepwalkers. Pose order is down, up, side, two
+ * frames each; DIR_LEFT draws the side pose H-flipped. */
+#define NPC_KIND_COUNT 3
+#define NPC_VILLAGER  0
+#define NPC_DRIFTER   1
+#define NPC_CAT       2
+/* Flat, so tcc never sees a 2-D const array: kind * 6 +
+ * (dir pose * 2 + frame). */
+static const u16 sprNpcName[18] = {
+    168, 170, 172, 174, 200, 202,
+    204, 206, 224, 226, 228, 230,
+    232, 234, 232, 234, 232, 234,
+};
+static const u8 sprNpcPal[3] = {
+    P_ENEMY, P_PATAPIM, P_TUNG
+};
+
 /* Battle sprite name per party member, idle then acting. */
 static const u16 sprPartyName[10] = {
     32, 36, 40, 44, 96, 100, 104, 108, 160, 164

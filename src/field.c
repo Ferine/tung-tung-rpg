@@ -72,6 +72,10 @@ void fieldLoadArea(u8 area, u8 mx, u8 my) {
     animTimer = 0;
     colPtr = areaCol(area);
     armEncounter();
+    /* Before the transfer below, so npcAt() is answering about this region
+     * and not the last one if anything asks between here and the first
+     * fieldUpdate. */
+    npcInit(area);
 
     /* Forced blank: 16KB of tileset and tilemap is far past a V-blank window,
      * and this is only ever called with the screen already faded out. */
@@ -210,6 +214,11 @@ void fieldUpdate(void) {
         return;
     }
 
+    /* After the guards above, so the world holds still behind a message box
+     * or the menu, and before the hero's own step, so a sleepwalker cannot
+     * take the cell he is already committed to. */
+    npcUpdate();
+
     /* --- mid-step: no decisions, just move ---------------------------- */
     if (stepLeft) {
         switch (heroDir) {
@@ -291,6 +300,10 @@ void fieldUpdate(void) {
     }
     if (flags & COL_BLOCK)
         return;
+    /* They are solid. Walking through one would say they are scenery, and
+     * the one thing they are is people. */
+    if (npcAt(mx, my))
+        return;
 
     stepLeft = STEP_FRAMES;
 }
@@ -323,6 +336,8 @@ void fieldDraw(void) {
     /* Priority 2: in front of BG1, behind the window layer on BG2.1 (A-19). */
     oamSet(0, (u16)sx, (u16)sy, 2, 0, 0, name, OPAL_TUNG);
     oamSetEx(0, OBJ_SMALL, OBJ_SHOW);
-    oamSet(4, 0, OAM_PARK_Y, 2, 0, 0, 0, 0);
-    oamSetEx(4, OBJ_SMALL, OBJ_HIDE);
+
+    /* Entries 1 upward, and it parks whatever it did not use -- which is
+     * what used to be the unconditional park of entry 1 here. */
+    npcDraw(camX, camY);
 }

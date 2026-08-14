@@ -269,6 +269,13 @@ extern u16 heroX, heroY;
 extern u8 curArea;
 extern u8 pendingArea, pendingX, pendingY;
 
+/* ---- the sleepwalkers -------------------------------------------------- */
+
+void npcInit(u8 area);
+void npcUpdate(void);
+void npcDraw(s16 camX, s16 camY);
+u8 npcAt(u8 mx, u8 my);
+
 /* ---- story ------------------------------------------------------------- */
 
 #define ACT_VILLAGE   0

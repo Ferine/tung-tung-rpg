@@ -179,6 +179,45 @@ the first call, and the ending.
 
 `python3 preview.py portraits` renders all eight.
 
+## The sleepwalkers
+
+Twenty-two wandering NPCs across the seven regions, in `src/npc.c`, on the same
+cell-based step the hero uses: a 16-dot cell, eight frames of two dots, so one
+is only ever *at* a cell or between two of them and everything that needs to
+know where one is can ask in cell units.
+
+**A walker owns two cells for the length of a step** — the one it left and the
+one it is entering. Owning only the destination lets the player walk into the
+cell being vacated and end up standing inside somebody; owning only the origin
+has the same result one step later. `npcAt()` answers for both, and `fieldUpdate`
+consults it before committing the hero to a step.
+
+**Their own random generator, not `rand()`.** The encounter counter is armed off
+`rand()`, so a shared sequence would make the pacing of random battles depend on
+how many sleepwalkers happened to be deciding something on a given frame. Six
+lines of LCG is cheaper than that coupling.
+
+**Three poses, not four.** Down, up and side, two frames each — the side pose is
+drawn facing right and the OBJ engine mirrors it for the other direction, which
+is what `oamSet`'s H-flip argument is for. Two characters saved per design on a
+page that had sixty-four left in it: the party's battle sprites are 32x32 and
+had taken 192 of the 256.
+
+They draw into OAM entries 1 upward, the hero keeps entry 0, and the dialogue
+portrait keeps entry 16 (`FACE_OAM`). Off-screen walkers are skipped: a region
+is 512 dots across against a 256-dot window, so most of them are outside it at
+any time, and an OBJ parked off screen still costs a slot against the
+32-per-line limit.
+
+`gen_world.py` picks the home cells, and rejects any cell whose four neighbours
+include an event: a sleepwalker parked on a door is one standing between the
+player and the shop, and one parked on an exit is worse.
+
+One thing the generator now catches that it did not before: `place()` tracks
+which characters of the resident page are spoken for, so two sprites at
+overlapping names fail the asset build instead of interleaving their pixels and
+coming out wrong on screen.
+
 ## The title screen
 
 191 characters and a 32x32 map, in BG1's battle window — a backdrop is exactly
@@ -340,7 +379,7 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `terrain.py` | metatile painters, shared by every region |
 | `gen_world.py` | seven regions: tilesets, tilemaps, collision, events, exits |
 | `gen_battle.py` | six battle backdrops |
-| `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits |
+| `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
 | `snesgfx.py` | 4bpp/CGRAM/tilemap encoders and the drawing surface |

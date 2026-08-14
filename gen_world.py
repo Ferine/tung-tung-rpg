@@ -651,10 +651,94 @@ def build_region(region):
     return sheet, quads, collide, len(pool.tiles), rows, anim, nanim
 
 
+# ---- the sleepwalkers ---------------------------------------------------
+#
+# Nobody in this game is awake. The figures drifting about the regions are the
+# people the WAKING was taken out of, still walking, and the count per region
+# is a statement about the place: the village is full of them, the salt flat
+# has almost nobody left to sleep in it.
+#
+# (villagers, drifters, cats)
+NPC_POP = {
+    'VILLAGE':  (4, 1, 1),
+    'FIELDS':   (1, 2, 0),
+    'FOREST':   (0, 3, 0),
+    'SHORE':    (1, 2, 0),
+    'SALT':     (0, 2, 0),
+    'FORTRESS': (0, 3, 0),
+    'HUSH':     (0, 2, 0),
+}
+
+NPC_VILLAGER, NPC_DRIFTER, NPC_CAT = 0, 1, 2
+
+NPC_APART = 3          # cells between two of them, so they do not clump
+NPC_ROAM = 3           # how far one may drift from where it started
+
+
+def place_npcs(region, collide):
+    """Pick a home cell for each sleepwalker in a region.
+
+    Standing room only: the cell and its four neighbours must be clear of
+    events, because an NPC parked on a door is an NPC standing between the
+    player and the shop, and one parked on an exit is worse.
+    """
+    key = region['key']
+    want = []
+    for kind, n in enumerate(NPC_POP[key]):
+        want += [kind] * n
+    if not want:
+        return []
+
+    reserved = {(SPAWN[1], SPAWN[2])} if key == SPAWN[0] else set()
+    for dest, dx, dy in EXITS.get(key, {}).values():
+        reserved.add((dx, dy))
+    for other, exits in EXITS.items():
+        for dest, dx, dy in exits.values():
+            if dest == key:
+                reserved.add((dx, dy))
+
+    def clear(x, y):
+        if not (1 < x < MAP_W - 2 and 1 < y < MAP_H - 2):
+            return False
+        c = collide[y * MAP_W + x]
+        if (c & BLOCK) or (c & TRIG):
+            return False
+        for ox, oy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            if collide[(y + oy) * MAP_W + x + ox] & TRIG:
+                return False
+        return True
+
+    # Somewhere to drift to: a home with no free neighbour is a sleepwalker
+    # standing still forever, which reads as a bug rather than as a mood.
+    def roomy(x, y):
+        return sum(1 for ox, oy in ((0, -1), (0, 1), (-1, 0), (1, 0))
+                   if not (collide[(y + oy) * MAP_W + x + ox] & BLOCK)) >= 2
+
+    cells = [(x, y) for y in range(MAP_H) for x in range(MAP_W)
+             if (x, y) not in reserved and clear(x, y) and roomy(x, y)]
+
+    rng = Rng(region['seed'] ^ 0x5133)
+    out = []
+    for kind in want:
+        best = None
+        for _ in range(64):
+            x, y = cells[rng.next() % len(cells)]
+            if any(abs(x - px) + abs(y - py) < NPC_APART for px, py, _k in out):
+                continue
+            best = (x, y, kind)
+            break
+        if best is None:
+            continue                # a region too small to hold another one
+        out.append(best)
+    return out
+
+
 def generate_world():
     total = 0
     report = []
     anims = []
+    npcs = []
+    npc_first = [0]
     for r in REGIONS:
         sheet, quads, collide, ntiles, rows, anim, nanim = build_region(r)
         key = r['key'].lower()
@@ -665,6 +749,8 @@ def generate_world():
         total += g.write('area_%s.col' % key, bytes(collide))
         total += g.write('area_%s.pal' % key,
                          g.palette_bin(r['pals'][0]) + g.palette_bin(r['pals'][1]))
+        npcs += place_npcs(r, collide)
+        npc_first.append(len(npcs))
         walkable = sum(1 for row in rows for ch in row
                        if not (ALPHABET.get(ch, ('', 0, BLOCK))[2] & BLOCK)
                        and ch not in HOUSE_CHARS)
@@ -707,6 +793,21 @@ def generate_world():
                 f.write("    " + ", ".join("%3d" % v for v in vals[i:i + 8])
                         + ",\n")
             f.write("};\n\n")
+        # The sleepwalkers, flat and indexed by area the same way.
+        f.write("/* Sleepwalkers. Area a owns npcAreaFirst[a] up to\n"
+                " * npcAreaFirst[a + 1]; see npc.c. */\n")
+        f.write("#define NPC_TOTAL %d\n" % len(npcs))
+        f.write("#define NPC_ROAM  %d\n" % NPC_ROAM)
+        f.write("static const u8 npcAreaFirst[AREA_COUNT + 1] = {\n    %s\n};\n"
+                % ", ".join("%d" % v for v in npc_first))
+        for arr, idx in (('npcHomeX', 0), ('npcHomeY', 1), ('npcKindAt', 2)):
+            f.write("static const u8 %s[NPC_TOTAL] = {\n" % arr)
+            for i in range(0, len(npcs), 8):
+                f.write("    " + ", ".join("%3d" % n[idx]
+                                           for n in npcs[i:i + 8]) + ",\n")
+            f.write("};\n")
+        f.write("\n")
+
         # Asset accessors. A switch rather than a table of pointers: tcc will
         # build a `const u8 *const[]` but the relocations it emits for one in a
         # LoROM bank are not worth the argument.

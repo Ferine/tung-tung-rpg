@@ -59,6 +59,29 @@ static const u8 areaExitY[AREA_COUNT * 4] = {
       8,   0,   0,   0,
 };
 
+/* Sleepwalkers. Area a owns npcAreaFirst[a] up to
+ * npcAreaFirst[a + 1]; see npc.c. */
+#define NPC_TOTAL 22
+#define NPC_ROAM  3
+static const u8 npcAreaFirst[AREA_COUNT + 1] = {
+    0, 6, 9, 12, 15, 17, 20, 22
+};
+static const u8 npcHomeX[NPC_TOTAL] = {
+     13,  18,  21,   9,  22,  27,   6,   4,
+     28,   9,   4,   3,   9,  12,   5,   3,
+     23,   9,  18,  24,  16,  10,
+};
+static const u8 npcHomeY[NPC_TOTAL] = {
+     15,  17,  21,   6,  25,  16,  11,   7,
+      8,  19,  19,  21,  12,  24,   6,  10,
+     22,  17,  15,  15,  18,  23,
+};
+static const u8 npcKindAt[NPC_TOTAL] = {
+      0,   0,   0,   0,   1,   2,   0,   1,
+      1,   1,   1,   1,   0,   1,   1,   1,
+      1,   1,   1,   1,   1,   1,
+};
+
 /* Region assets. Defined in worlddata.asm, which this file
  * also generates, so a region cannot exist in one and not the
  * other. */

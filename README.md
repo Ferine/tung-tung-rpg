@@ -83,6 +83,23 @@ rather than dithered bands, a vignette over the field, and water that shimmers
 under it. The title screen is a picture: a village under a moon, with the logo's
 shine and the star field animated without redrawing a single tile.
 
+### The sleepwalkers
+
+The regions are not empty, and the people in them are not awake. Twenty-two
+figures drift about the seven maps — villagers in nightcaps with their arms out
+in front of them, taller ones still in the day's clothes, and the five-legged
+cat from the opening, asleep, standing up. They wander a few cells from wherever
+the night caught them, they walk into walls and stand there facing them, and
+they never say a word, because there is nobody home to say it. They are solid:
+you can no more walk through one than talk to them.
+
+The village has six. The salt flat has two, which is as many as the salt flat
+has ever had.
+
+<p align="center">
+  <img src="media/sleepwalkers.png" width="384" alt="Two sleepwalkers and the five-legged cat, drifting through the village">
+</p>
+
 <p align="center">
   <img src="media/shore-water.gif" width="384" alt="The sea at Pantai, crests travelling and the surface shimmering">
   <img src="media/village-walk.gif" width="384" alt="Walking through Kampung Sahur at night">

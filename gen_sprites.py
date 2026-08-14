@@ -1049,6 +1049,103 @@ def draw_walk(direction, frame):
     return c
 
 
+# ---- the sleepwalkers ---------------------------------------------------
+#
+# Nobody in this game is awake, so the field's other inhabitants are not
+# villagers going about their business -- they are villagers who did not stop
+# moving when the WAKING was taken out of them. They drift, they face walls,
+# and they never say anything, which is the whole point of them.
+#
+# Three poses each rather than four: 'side' is drawn facing right and the OBJ
+# engine mirrors it for the other direction (oamSet takes an H-flip), which is
+# two characters saved per design on a page with sixty-four left in it.
+
+def draw_villager(facing, frame):
+    """A sleeper in a nightshirt, arms out. P_ENEMY: purples and cream."""
+    c = Canvas(16, 16)
+    step = 1 if frame else 0
+
+    c.rect(5, 14 - step, 2, 2, 2)               # bare feet, alternating
+    c.rect(9, 13 + step, 2, 2, 2)
+
+    c.rect(5, 8, 6, 3, 8)                       # the shirt, belling at the hem
+    c.rect(4, 11, 8, 3, 8)
+    c.line(4, 13, 11, 13, 9)
+
+    c.disc(7.5, 4, 2.6, 5)                      # face
+    c.rect(6, 6, 4, 1, 5)                       # a neck, so the head reads
+    c.ellipse(7.5, 2.2, 3.2, 1.6, 3)            # nightcap
+    c.line(4, 3, 11, 3, 2)                      # its brim, dark
+    c.set(12, 1, 4)                             # and its bobble
+
+    if facing == 'up':
+        c.rect(5, 3, 6, 3, 3)                   # the back of the cap
+        c.disc(7.5, 5, 2.2, 3)
+    elif facing == 'down':
+        c.rect(5, 4, 2, 1, 1)                   # eyes, shut
+        c.rect(9, 4, 2, 1, 1)
+        c.rect(1, 9, 4, 2, 5)                   # arms out in front
+        c.rect(11, 9, 4, 2, 5)
+    else:
+        c.rect(8, 4, 2, 1, 1)
+        c.rect(10, 9, 5, 2, 5)                  # one arm, leading
+
+    c.outline()
+    return c
+
+
+def draw_drifter(facing, frame):
+    """Taller, hunched, still in the day's clothes. P_PATAPIM: earth tones."""
+    c = Canvas(16, 16)
+    step = 1 if frame else 0
+
+    c.rect(5, 14 - step, 2, 2, 4)
+    c.rect(9, 13 + step, 2, 2, 4)
+
+    c.rect(5, 9, 6, 5, 3)                       # body, narrower than the head
+    c.rect(4, 8, 8, 2, 8)                       # a pale shirt across the
+    c.line(4, 10, 11, 10, 2)                    # shoulders, then the belt
+
+    c.disc(7.5, 4.5, 3.0, 10)                   # head
+    c.ellipse(7.5, 2.0, 3.2, 1.8, 2)            # hair, heavy on top
+
+    if facing == 'up':
+        c.rect(5, 2, 6, 4, 2)                   # the back of the head
+        c.disc(7.5, 4, 2.4, 2)
+    elif facing == 'down':
+        c.rect(5, 4, 2, 1, 1)                   # eyes, shut
+        c.rect(9, 4, 2, 1, 1)
+        c.rect(2, 9, 2, 4, 10)                  # arms hanging
+        c.rect(12, 9, 2, 4, 10)
+    else:
+        c.rect(8, 4, 2, 1, 1)
+        c.rect(11, 9, 2, 4, 10)
+
+    c.outline()
+    return c
+
+
+def draw_cat(frame):
+    """The cat from the opening: asleep, standing up, with five legs. Drawn
+    facing right; it only ever drifts sideways, so it needs no other view."""
+    c = Canvas(16, 16)
+    step = 1 if frame else 0
+
+    for i, x in enumerate((3, 6, 9, 11, 13)):   # five, and nobody mentions it
+        c.rect(x, 12 + ((i + step) & 1), 1, 3, 2)
+
+    c.rect(3, 7, 11, 5, 3)                      # body
+    c.ellipse(8, 7, 5.5, 2.0, 4)
+    c.disc(13, 6, 2.6, 3)                       # head
+    c.tri((11, 4), (12, 1), (13, 4), 2)         # ears
+    c.tri((14, 4), (15, 1), (15, 4), 2)
+    c.line(14, 6, 15, 6, 1)                     # eye, shut
+    c.line(3, 7, 1, 3, 2, 2)                    # tail, up
+
+    c.outline()
+    return c
+
+
 # ---- sheet layout -------------------------------------------------------
 #
 # The resident page is 256 characters and holds everything that is always on
@@ -1075,6 +1172,33 @@ PARTY_SLOTS = [
 
 WALK_ORDER = [('down', 0), ('down', 1), ('up', 0), ('up', 1),
               ('left', 0), ('left', 1), ('right', 0), ('right', 1)]
+
+# The sleepwalkers go in what the party sprites left of the page: rows 10-15,
+# columns 8-15, in 16x16 slots. Six poses each -- down, up, side, two frames
+# apiece -- except the cat, which only ever moves sideways.
+NPC_POSES = [('down', 0), ('down', 1), ('up', 0), ('up', 1),
+             ('side', 0), ('side', 1)]
+
+def _poses(base, painter):
+    """One 16x16 slot per pose, two names apart, laid out left to right."""
+    return [(base[i], painter, d, f) for i, (d, f) in enumerate(NPC_POSES)]
+
+
+# (name, key, palette, art, pose->name). `art` is what actually gets drawn;
+# `pose` is what the C indexes. The cat has two of the one and six of the
+# other, because it drifts sideways whichever way it is going.
+NPC_KINDS = [
+    ('VILLAGER', 'P_ENEMY',
+     _poses([168, 170, 172, 174, 200, 202], draw_villager),
+     [168, 170, 172, 174, 200, 202]),
+    ('DRIFTER', 'P_PATAPIM',
+     _poses([204, 206, 224, 226, 228, 230], draw_drifter),
+     [204, 206, 224, 226, 228, 230]),
+    ('CAT', 'P_TUNG',
+     [(232, lambda d, f: draw_cat(f), 'side', 0),
+      (234, lambda d, f: draw_cat(f), 'side', 1)],
+     [232, 234, 232, 234, 232, 234]),
+]
 
 # type id -> (painter, palette). Order must match the EN_* constants in
 # src/ttrpg.h; enemyArtOffset is indexed by the same number.
@@ -1108,12 +1232,22 @@ ENEMY_ART = [
 ]
 
 
-def place(sheet, canvas, name):
+def place(sheet, canvas, name, _taken={}):
     tiles = max(canvas.w, canvas.h) // 8
     col, row = name % 16, (name % 256) // 16
     if col + tiles > 16 or row + tiles > 16:
         raise SystemExit("sprite at name %d wraps its page (col %d row %d, "
                          "%d tiles)" % (name, col, row, tiles))
+    # Two sprites at overlapping names do not fail, they interleave: the
+    # second one's pixels land on top of the first and both come out wrong,
+    # on screen, at run time. Say so here instead.
+    for r in range(row, row + tiles):
+        for k in range(col, col + tiles):
+            n = r * 16 + k
+            if n in _taken:
+                raise SystemExit("sprite at name %d overlaps the one at %d "
+                                 "(character %d)" % (name, _taken[n], n))
+            _taken[n] = name
     ox, oy = sheet.origin(name)
     for y in range(canvas.h):
         for x in range(canvas.w):
@@ -1340,6 +1474,10 @@ def generate_sprites():
     place(sheet, draw_bombard('idle'), 160)
     place(sheet, draw_bombard('attack'), 164)
 
+    for _key, _pal, art, _poses_ in NPC_KINDS:
+        for name, painter, d, f in art:
+            place(sheet, painter(d, f), name)
+
     pal = b''.join(g.palette_bin(p) for p in PALS)
     g.write('sprites.pic', sheet.to_pic())
     g.write('sprites.pal', pal)
@@ -1378,6 +1516,20 @@ def generate_sprites():
             f.write("#define %-9s %d\n" % (nm, i))
         f.write("\n#define OPAL_TUNG   P_TUNG\n#define OPAL_ENEMY  P_ENEMY\n"
                 "#define OPAL_BOSS   P_BOSS\n")
+        f.write("\n/* The sleepwalkers. Pose order is down, up, side, two\n"
+                " * frames each; DIR_LEFT draws the side pose H-flipped. */\n")
+        f.write("#define NPC_KIND_COUNT %d\n" % len(NPC_KINDS))
+        for i, (nm, _p, _a, _n) in enumerate(NPC_KINDS):
+            f.write("#define NPC_%-9s %d\n" % (nm, i))
+        f.write("/* Flat, so tcc never sees a 2-D const array: kind * 6 +\n"
+                " * (dir pose * 2 + frame). */\n")
+        f.write("static const u16 sprNpcName[%d] = {\n" % (len(NPC_KINDS) * 6))
+        for _nm, _p, _a, poses in NPC_KINDS:
+            f.write("    %s,\n" % ", ".join(str(n) for n in poses))
+        f.write("};\n")
+        f.write("static const u8 sprNpcPal[%d] = {\n    %s\n};\n"
+                % (len(NPC_KINDS),
+                   ", ".join(k[1] for k in NPC_KINDS)))
         f.write("\n/* Battle sprite name per party member, idle then acting. */\n")
         f.write("static const u16 sprPartyName[%d] = {\n    "
                 % (len(PARTY_SLOTS) * 2))
