@@ -1,494 +1,164 @@
 # TUNG TUNG SAHUR — Le Tre Chiamate
 
 A six-act SNES RPG in the Final Fantasy IV idiom, cast entirely from the
-Italian brainrot canon. Sahur is the meal before dawn; Tung Tung Tung Sahur
-walks the night beating his slit drum to wake the sleeping. Tonight nobody
-wakes. See `STORY.md`.
+Italian brainrot canon.
+
+Sahur is the meal before dawn, and the drum is what wakes a village to eat it.
+Tung Tung Tung Sahur walks the night beating his slit drum to wake the
+sleeping. Tonight nobody wakes — something came up the east road and took the
+WAKING out of people. Took it, like a wallet.
 
 <p align="center">
   <img src="shots/title_final.png" width="384" alt="Tung Tung Sahur title screen">
   <img src="shots/battle.png" width="384" alt="A battle in Tung Tung Sahur">
 </p>
 
-Builds a real 4MB LoROM `.sfc` that runs on hardware and on any accurate
-emulator. Honest accounting: the cartridge is declared 4MB (`ROMSIZE $0C`, 128
-banks) and about 349KB of it is code and data. The rest is headroom — the
-declaration is what a mapper and an emulator read, and the size is deliberate,
-not filled. The ROM itself is a build artifact and is intentionally not stored
-in the repository.
+It is a real 4MB LoROM `.sfc` that runs on hardware and on any accurate
+emulator. **[Download the ROM from the v0.001
+release.](https://github.com/Ferine/tung-tung-rpg/releases/tag/v0.001)**
 
-The current prebuilt ROM is available from the
-[v0.001 release](https://github.com/Ferine/tung-tung-rpg/releases/tag/v0.001).
+---
+
+## The story
+
+A pilgrim walks east. At each stage he meets a guardian who is not evil, only
+wrong — beats them, and gains them. By the last act the party is five things
+that should not be able to stand each other, walking in step.
+
+SLOP is the material of this world. Not an insult, the substance. Everyone here
+was generated, everyone knows it, and none of them find it interesting. A shark
+has three shoes. A tree has legs, and the wrong number of them. A crocodile is
+also an aeroplane. That is simply what they were made out of, in about four
+seconds, and they have all had a month to get over it.
+
+The antagonist is slop that wants to stay smooth: an infinite, comfortable,
+frictionless feed where nothing else ever happens and everybody is very relaxed
+about that. The party is slop that decided to **get up**. That is the only
+difference between them and it is the whole game.
+
+The places are Indonesian, because Tung Tung Tung Sahur is. The people are
+Italian, because they are. That collision is the genre, not a mistake in it.
+
+**[`STORY.md`](STORY.md) has all six acts, the cast and the cameos.**
+
+## The party
+
+Each companion is a different argument against lying down.
+
+| | how they refuse | joins |
+|---|---|---|
+| **TUNG TUNG TUNG SAHUR** — il tamburo | on principle | the start |
+| **BRR BRR PATAPIM** — le radici | by standing there, and taking the hits so nobody else has to | Atto II |
+| **TRALALERO TRALALA** — tre scarpe | by never stopping | Atto III |
+| **LIRILÌ LARILÀ** — il tempo | by remembering | Atto IV |
+| **BOMBARDIRO CROCODILO** — l'ordigno | loudly, having been on the wrong side | Atto V |
+
+## The world
+
+Seven regions, each with its own tileset, palette and battle backdrop:
+**Kampung Sahur** the village, the east road, **Hutan** the forest that stopped
+moving, **Pantai** where the Sleep runs into water and stops, **Padang Garam**
+where nothing has grown since before the Sleep, **Langit Besi** a fortress held
+up by nothing anybody can point at, and **Malam Panjang** — not a place so much
+as a held breath.
+
+Six of the seven have something moving in them: water crests that travel, a
+lantern that breathes, mushroom caps that take turns being lit, forge mouths
+that swell, and the tear in Malam Panjang pulling itself open. The salt flat has
+nothing that moves, which is the point of the salt flat.
+
+Each region gets its own sky, drawn a scanline at a time — a smooth gradient
+rather than dithered bands, a vignette over the field, and water that shimmers
+under it. The title screen is a picture: a village under a moon, with the logo's
+shine and the star field animated without redrawing a single tile.
+
+## Battles
+
+Active-time, in the FF4 shape: a gauge per combatant, FIGHT / SKILL / ITEM /
+GUARD / RUN, a staggered two-column party of up to five, target selection with
+the enemy named, damage numbers. Fourteen skills learned by level, eight items,
+charms that take one equipment slot each.
+
+Six acts, five guardians, and a final boss that fights in two shapes: the first
+pleads, the second stops being polite.
+
+Twenty-four enemy designs, six of them 64x64 bosses. Six are the canon itself —
+Cappuccino Assassino, Bombombini Gusini, Boneca Ambalabu, Blueberrinni
+Octopusini, Glorbo Fruttodrillo and La Vacca Saturno Saturnita — one face per
+region.
+
+Dialogue is JRPG-style: eight 32x32 busts in a frame above the message box, and
+the game works out who is speaking from the line itself.
+
+## Playing it
+
+| button | does |
+|---|---|
+| **D-pad** | walk; move the cursor |
+| **A** | confirm; advance dialogue |
+| **B** | cancel, back out of a menu |
+| **START** | open the field menu; also advances dialogue |
+| **L / R** | flip the shop page |
+
+There is no talk button — walk into somebody, or into a door, and it happens.
+
+Talk to LA NONNA before the village will let you east. After that the road is
+gated one act at a time. Wells restore the party *and* save; there is one before
+each guardian, because arriving at a boss on a third of a bar is bookkeeping,
+not difficulty. The shop in the village sells supplies and charms. The save is
+battery-backed, so CONTINUE picks up where you left it.
+
+**SLEEP is the mechanic to actually think about.** The Sleepers inflict it, a
+sleeping character's gauge stops, and Tung's **SAHUR!** clears it from the whole
+party at once while hitting everything on the field. Tung himself never sleeps.
+In the last act that stops being a convenience and becomes the only reply the
+game has.
+
+## The music
+
+Thirteen tracks, played on a fifteen-piece orchestra: violin and cello sections,
+contrabass, horn, oboe, flute, pipe organ, harp, glockenspiel, timpani, and the
+kentongan — the slit drum the game is named after. Eight sound effects,
+synthesised, because a menu blip wants a swept sine and not a recording.
+
+The instruments are cut from CC0 recordings rather than synthesised, which is
+what a 16-bit RPG score actually is: FF6 and Chrono Trigger are an orchestra
+sliced into a few hundred bytes per instrument and played back through the
+SPC700. See [`SAMPLES.md`](SAMPLES.md) for the sources and the licence.
+
+---
 
 ## Build
 
-Prerequisites:
-
-- Python 3.10 or newer
-- GNU Make
-- [pvsneslib](https://github.com/alekmaul/pvsneslib)
-
-Point `PVSNESLIB_HOME` at the pvsneslib checkout, then build:
+Prerequisites: Python 3.10 or newer, GNU Make, and
+[pvsneslib](https://github.com/alekmaul/pvsneslib).
 
 ```sh
 export PVSNESLIB_HOME=/path/to/pvsneslib
 make
 ```
 
-The generated graphics and tracker modules needed for a normal build are kept
-in the repository. To regenerate them from their Python sources, first fetch
-the pinned CC0 recordings:
-
-```sh
-python3 fetch_samples.py
-python3 gen_assets.py
-make
-```
-
-Pillow is optional and only needed for previews and screenshots:
-
-```sh
-python3 -m pip install Pillow
-python3 preview.py title
-python3 capture.py --core /path/to/mesen-s_libretro --out shots
-```
-
-`capture.py`, `play.py`, and `perf.py` also accept the Mesen-S core through the
-`MESEN_S_CORE` environment variable. `TUNGTUNG_ROM` can override the ROM path.
-
----
-
-## What is in it
-
-- **Seven regions**, each with its own 256-character tileset, palette and
-  battle backdrop: the village, the east road, Hutan, Pantai, Padang Garam,
-  Langit Besi and Malam Panjang. One is resident at a time; changing region is
-  a 17KB forced-blank transfer behind the fade.
-- **Six acts** with a gated route, five recruitable characters, five guardians
-  and a two-phase final boss.
-- **Active-time battles**: gauges per combatant, FIGHT / SKILL / ITEM / GUARD /
-  RUN, a staggered two-column party of up to five, target selection with the
-  enemy named, damage numbers, fourteen skills learned by level, eight items.
-- **Twenty-four enemy designs**, six of them 64x64 bosses, streamed into a
-  scratch OBJ page per fight because they cannot all be resident in 512
-  characters. Six are the canon itself — Cappuccino Assassino, Bombombini
-  Gusini, Boneca Ambalabu, Blueberrinni Octopusini, Glorbo Fruttodrillo and La
-  Vacca Saturno Saturnita — one face per region.
-- **Dialogue portraits**: eight 32x32 busts in a frame above the message box,
-  JRPG-style. Who is speaking is read off the line itself.
-- **A title screen that is a picture**: 191 characters of village-under-a-moon,
-  with the logo's shine and the star field animated entirely by rotating seven
-  CGRAM entries.
-- **Field menu, shop, charms and a battery-backed save.**
-- **Thirteen music tracks** played on a fifteen-piece orchestra cut from CC0
-  recordings — violin and cello sections, contrabass, horn, oboe, flute, pipe
-  organ, harp, glockenspiel, timpani, and the slit drum the game is named
-  after. Eight sound effects, synthesised. See `SAMPLES.md`.
-- **H-DMA raster effects**: per-scanline sky gradients, a field vignette, and
-  an eight-phase water shimmer.
-- **Animated tiles** in six of the seven regions: water crests that travel, a
-  lantern that breathes, mushroom caps that take turns being lit, forge mouths
-  that swell, and the tear in Malam Panjang pulling itself open.
+That is the whole build — the generated graphics and tracker modules are kept in
+the repository, so nothing has to be downloaded first. The ROM is a build
+artifact and is deliberately not stored here.
 
 Everything on screen is generated by the Python in this directory: no art
-program, no tracker. `gen_assets.py` is the whole pipeline. Which is fitting,
-because so is everybody in it.
-
-The music is the one thing not made from nothing, and deliberately: the
-instruments are real recordings, because that is what a 16-bit RPG score is.
-FF6 and Chrono Trigger are not synthesised — they are an orchestra cut into a
-few hundred bytes per instrument and played back through the SPC700. Same
-process here, on CC0 material. `SAMPLES.md` has the details and the licence.
-
----
-
-## Layers
-
-BG mode 1. The priority order for the 3-screen modes (development manual
-Appendix A-19) reads, rear to front:
-
-```
-back  BG4.0  BG3.0  OBJ.0  BG4.1  BG3.1  OBJ.1  BG2.0  BG1.0  OBJ.2
-      BG2.1  BG1.1  OBJ.3      [BG3.1 jumps frontmost when $2105 D3 = 1]
-```
-
-Windows have to cover the party sprites the way FF's do, and the only band
-that sits above an OBJ without also demanding BG3's four colours is BG2.1 —
-directly in front of OBJ.2. So:
-
-| layer | contents | note |
-|---|---|---|
-| BG1 | region map / battle backdrop | every tile priority 0 |
-| BG2 | text and windows | every tile priority 1 |
-| BG3 | unused | its palette would overlap BG1's (A-17) |
-| OBJ | characters | priority 2, under the windows |
-
-## VRAM
-
-Word addresses. Character bases are 4K-word granular ($210B/$210C) and tilemap
-bases 1K-word granular ($2107–$210A), which is what the gaps are.
-
-```
-$0000-$0FFF  OBJ characters 000-0FF   resident: hero, five battlers
-$1000-$1BFF  OBJ characters 100-1BF   scratch: this fight's enemies
-$1C00-$1FFF  OBJ characters 1C0-1FF   scratch: the speaking portrait
-$2000-$2FFF  font + window tiles           BG2 character base
-$3000-$3FFF  region tileset                BG1 character base, field
-$4000-$4FFF  region tilemap 64x64          BG1 tilemap base
-$5000-$53FF  text tilemap 32x32            BG2 tilemap base
-$5400-$57FF  battle tilemap 32x32          BG1 tilemap base, battle
-$6000-$6FFF  battle backdrop tileset       BG1 character base, battle
-```
-
-Twenty-four enemy designs come to 21KB. The second OBJ page is therefore a
-scratch window: a fight uploads exactly the designs it needs, behind the
-encounter wipe, in forced blank.
-
-The portrait shares that page without ever colliding with it. A 32x32 OBJ at
-name 448 spans character rows 12-15; a 64x64 boss at name 256 covers rows 0-7,
-and six small enemies cover rows 0-1. Nothing reaches row 12.
-
-## Raster
-
-Two H-DMA channels. The eight DMA channels are shared between general-purpose
-and H-DMA and the manual is explicit that one channel must not do both
-($420B); channel 0 is every pvsneslib GP-DMA and channel 7 is the OAM copy the
-library's NMI issues, so the raster takes 1 and 2.
-
-- **ch1 → $2132 COLDATA**, one byte a line. Colour math is left on in subtract
-  mode permanently and the table decides how much lands on each line, so the
-  palette holds the brightest version of the sky and the raster darkens it
-  toward the top. That buys a gradient far smoother than four dithered bands,
-  and a vignette for free.
-- **ch2 → $210D BG1HOFS**, two bytes a line (write-twice). Eight phase tables
-  in ROM; the game advances which one the channel reads, so water ripples for
-  three stores a frame instead of rebuilding 450 bytes.
-
----
-
-## Eight bugs worth writing down
-
-**A 64x64 OBJ wraps inside its character page.** A-4 says a large OBJ's cells
-are "taken row-wise from the 16x16-character page" — a page of 16 by 16
-characters, and the index wraps *inside it*. The boss sat at name $E0, row 14,
-so its bottom six rows wrapped back to rows 0–5 and it drew its own wingtip on
-top of six copies of the walking sprite. VRAM, OAM and $2101 were all correct.
-`gen_sprites.py` now asserts a large sprite's block fits its page both ways.
-
-**VRAM is writable in forced blank or V-blank only.** The enemy art upload ran
-from the field update, in the middle of a visible frame. It wrote nothing at
-all, silently, and every enemy in the game was invisible with a perfectly
-correct OAM entry pointing at an empty page.
-
-**WRAM is not zeroed at reset.** pvsneslib's crt0 clears the direct page and
-the stack, not the whole of bank $7E. `menuActive` came up 64 on a cold boot,
-which made `main()` skip `fieldDraw` — so the hero was invisible for a whole
-session with his OAM entry sitting there, parked and correct.
-
-**A 64x64 tilemap is not one 64-wide array.** SC size 3 is four 32x32 screens
-stored consecutively — SC0 SC1 / SC2 SC3, each with a 32-entry row stride
-(A-14). Written row-major across all 64 columns instead, the PPU reads screen
-row *r* from map row *r/2* and the world comes out interleaved.
-
-**Glyph 0 is a space and a space is transparent.** Right over the field, wrong
-inside a window: every gap in `TUNG  130  12` punched a hole in the fill and
-the status box came out striped with the backdrop. Same bug twice — once in
-`textPutPal`, once in the message box's own typing path.
-
-**Battle borrows two BG palettes and the field never got them back.** Slots 0
-and 1 hold red and green glyphs for the duration of a fight; nothing restored
-the region's own colours on the way out, so the world came back from every
-battle in lavender and orange and stayed that way for the session. The field
-menu has the same problem in reverse and additionally needs BG1 *off*, because
-a glyph's background is transparent and every letter was showing the recoloured
-map through itself.
-
-**WRAM is not zeroed at reset — and file statics count.** The fix for that had
-been `globalsInit`, which zeroes the globals in `globals.c`. `msgFaceForced` is
-a static inside `text.c`, so it was never in that list; the first line of the
-first conversation after a CONTINUE read whatever was in the byte at power-on
-and asked for portrait 222. It only reproduced on a loaded save, because a new
-game plays the opening scene first and that consumed the garbage.
-
-**A full repaint of the battle screen costs eight frames.** Clearing 1024 text
-cells and redrawing every window frame, every frame, was ~1400 tile writes plus
-the clear, and the 65816 got through it roughly once every eight frames. The
-ATB crawled and — worse — a one-frame `padsDown` pulse was missed seven times
-out of eight, so the command window looked frozen and the battle unwinnable.
-Draw the layout when the layout changes, and only the volatile cells otherwise.
-
-## Portraits
-
-Eight busts — Tung, La Nonna, the four guardians who join, Il Silenzio and the
-Ballerina — in a six-tile frame stacked directly on top of the message box.
-
-Three details make it cheap:
-
-**One OBJ, not four.** `ppuSetFieldMode` selects `OBJ_SIZE16_L32`, so in the
-field a *large* OBJ is 32x32 — a portrait is one OAM slot. (Battle uses
-`OBJ_SIZE32_L64`, which is why the portrait is parked on the way in: the size
-pair changes underneath anything still on screen, and a bust left showing would
-come back as a 64x64 read of whatever follows it in VRAM.)
-
-**Priority 3.** The frame is BG2 at tile priority 1, and A-19 puts BG2.1 in
-front of OBJ.2 — the priority everything else in the game uses. A portrait
-drawn there is behind its own frame. OBJ.3 is the only band in front of it.
-
-**Four transfers, one a frame.** 512 bytes will not fit in a V-blank next to
-the OAM copy the NMI already issued and the text-layer DMA behind it. A 32x32
-OBJ's character rows sit 16 names apart (A-4), so the art is four runs of 128
-bytes anyway — one per frame, skipping the frames the tile animation wants,
-and the OBJ is not shown until all four have landed. The box types its text in
-over rather longer than four frames, so the wait is invisible.
-
-### Who is talking
-
-Nothing had to be annotated. The script was already written as
-
-```c
-"LA NONNA: \"Tung. TUNG. I know. Three nights you bang that thing.\""
-"\"Something came up the east road and took the WAKING out of people.\""
-```
-
-— a name and a colon when somebody starts speaking, a bare opening quote when
-they carry on. So the portrait is chosen by matching that prefix, and a line
-that opens with a quote keeps whoever spoke last. Narration matches neither and
-gets no portrait, which is right for the two thirds of the script that is
-narration. Checked across the whole script: no scene opens on a quote and no
-narration line does either, so the two cases never collide.
-
-`sceneFace()` covers the handful of beats where the camera is on somebody the
-narrator is talking *about* rather than *as* — the opening, where Tung beats
-the first call, and the ending.
-
-`python3 preview.py portraits` renders all eight.
-
-## The title screen
-
-191 characters and a 32x32 map, in BG1's battle window — a backdrop is exactly
-that shape, so the title costs no new VRAM layout at all.
-
-Two things move, and neither touches a tile:
-
-- **The logo's shine.** Its pixels are not one colour but four, chosen by a
-  horizontal band across the letterform. Rotating those four CGRAM entries
-  walks a bright bar down the letters. Eight bytes to `$2122` a frame.
-- **The stars.** Three more entries, rotated slower.
-
-The band runs across rather than diagonally for a reason that has nothing to do
-with taste. A diagonal ramp depends on x, so the same letter at two places on
-the line becomes two different sets of tiles — the logo alone came to 181 of
-the 256 characters a page holds, and the screen would not fit. Banding by y
-only means every 'T' in the title is the same 'T'. That one change took the
-picture from 348 characters to 266.
-
-The rest came from the skyline: a smooth ridge gives almost every tile along
-its edge a different profile, so the curve is snapped to even scanlines, which
-halves the distinct heights and is invisible at this size. Stars are one pixel
-each and land at one of four fixed offsets inside their cell — scattered
-freely, a hundred and fifty stars is a hundred and fifty unique characters for
-something the eye reads as texture. Final count: 191.
-
-## Animated tiles
-
-Every liquid painter in `terrain.py` takes a `phase`, so the same metatile can
-be cut four times with its crests moved along. Playing them back is one VRAM
-transfer every eight frames — but only if the characters involved are
-*contiguous*, because a V-blank has room for one small DMA and not for eight
-scattered ones.
-
-So `gen_world.py` reserves the animated characters at the **head** of each
-region's pool, before anything else is added, and the runtime copies characters
-0..n-1 of the region tileset. Eight characters is 256 bytes, under 100 µs at
-DMA rate, inside a V-blank of over 215 µs — and the OAM copy on channel 7 has
-already finished by the time the main loop gets there.
-
-One consequence worth stating: after the reservation the pool's dedup table is
-cleared. An ordinary tile that happens to be pixel-identical to a water tile
-would otherwise share its character and ripple along with the sea.
-
-| region | animates | chars |
-|---|---|---|
-| VILLAGE | lantern flame | 4 |
-| FIELDS | water | 4 |
-| FOREST | mushroom caps | 8 |
-| SHORE | water, shallows | 8 |
-| FORTRESS | furnace mouths | 4 |
-| HUSH | the rift | 4 |
-
-The salt flat has nothing that moves, which is the point of the salt flat.
-
-`python3 preview.py anim` cuts each region's `.anm` into a strip — one row per
-phase, so a broken frame is visible without booting anything.
-
----
-
-## The orchestra
-
-Fifteen instruments, 14KB of BRR, cut from two CC0 libraries (`SAMPLES.md`).
-The whole job is one constraint:
-
-**A loop must be a whole number of periods.** BRR is a 16-sample block format
-and a loop can only re-enter at a block boundary, so the loop length has to be
-a multiple of 16 — and 16 has no reason to divide the period of a violin. Cut
-the loop at a round number of samples instead and it is 11.5 periods long, so
-every wrap restarts the waveform half a cycle out of phase. A crossfade hides
-the click but not the pitch: what you hear is the loop frequency itself, a 14Hz
-warble under a sustained note, and it is worse the lower the instrument. The
-contrabass and the harp both did it.
-
-So `sfsample.py` picks the number of periods, rounds them out to a block
-boundary, and resamples the source by a fraction of a percent until they fit
-exactly. After which
-
-    C5Speed = 523.25 * (loop length / periods)
-
-puts note 60 on a C5 by construction — the same relation the old synthesised
-instruments had for free, when a cycle was 32 samples because they were drawn
-that way.
-
-Glockenspiel and harp are struck and then decay, so both are pitched one-shots
-rather than loops. Looping a note that has already stopped is the single most
-recognisable way for a sampled instrument to sound wrong.
-
-`checktune.py` measures the finished samples and fails the asset build at 18
-cents. All fifteen come in under 11.
-
-## Cartridge
-
-Mode 20 (LoROM), `$FFB0`–`$FFDF` registration header per cartridge-rom.md:
-`$FFD5 = $20` LoROM/SlowROM, `$FFD6 = $02` ROM+RAM+battery, `$FFD8 = $01` for
-2KB of SRAM, `$FFDA = $33` — the licensee code that tells the reader to look in
-the extended header at `$FFB0`. The checksum is the sum of every byte modulo
-$10000 with the two checksum words counted as $00; complement and checksum must
-XOR to $FFFF, which they do.
-
-## Tools
-
-Every binary the ROM embeds — tilesets, tilemaps, collision, palettes,
-animation strips, H-DMA tables — is written into `assets/`. The generators name
-them, the `.incbin` lines in `data.asm` and the generated `worlddata.asm`,
-`bgdata.asm`, and `hdmadata.asm` read them from there, and the assembly units
-themselves stay in the root because `snes_rules` globs root `*.asm` into
-`OFILES`.
-
-| file | does |
-|---|---|
-| `gen_assets.py` | driver: runs every generator below |
-| `gen_font.py` | BG2 sheet — glyphs, icons, gauges, window frame, logo letters |
-| `terrain.py` | metatile painters, shared by every region |
-| `gen_world.py` | seven regions: tilesets, tilemaps, collision, events, exits |
-| `gen_battle.py` | six battle backdrops |
-| `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits |
-| `gen_hdma.py` | per-scanline colour and scroll tables |
-| `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
-| `snesgfx.py` | 4bpp/CGRAM/tilemap encoders and the drawing surface |
-| `itwriter.py` | a minimal Impulse Tracker writer |
-| `preview.py` | renders the converted binaries back to PNG — `world`, `battle`, `sprites`, `anim`, `portraits`, `title` |
-| `capture.py` | runs the ROM headless in the Mesen-S libretro core |
-| `play.py` | scripted playthrough: BFS pathing, fights, act checks |
-| `perf.py` | frames advanced per 60, per game state |
-| `mksave.py` | hand-builds an SRAM save block, so a test can start at any point |
-| `checksyms.py` | fails the build on a global defined twice |
-| `checktext.py` | fails the build on a string wider than the screen |
-| `checkfaces.py` | fails the build on a speaker with no portrait |
-| `checkbank.py` | fails the build when audio.c and smconv disagree on the soundbank symbol |
-| `checkrom.py` | fails the build if the 4MB LoROM/battery-SRAM header or checksum changes |
-| `checktune.py` | fails the asset build on an instrument more than 18 cents out |
-| `gen_title.py` | the title illustration, its tileset and its cycle ramps |
-| `sfsample.py` | conditions real recordings into looped SNES samples |
-| `fetch_samples.py` | downloads the CC0 source recordings into `samples/` |
-
-`preview.py` shows what the *generators* produced. `capture.py` shows what the
-console actually put on screen, which is the only way to observe a mistake made
-between the `.pic` file and the PPU — and it is how most of the bugs above were
-found. `play.py` builds on it with BFS pathfinding taken from the same
-generator the ROM was built from, so a change can be checked against the whole
-six-act structure rather than one screen:
-
-```python
-exec(open('play.py').read())
-travel(29, 13)          # BFS across the region's own collision map
-boss_fight(16, 15)      # scene, battle, and any second shape
-```
-
-`mksave.py` is the other half of that: the save block's layout is written out
-longhand in `save.c` because it outlives the build, and the same property lets
-Python write one. Injecting a blob into the core's SRAM and choosing CONTINUE
-puts a level-24 party at the last well in about a minute, instead of the
-forty-five a legitimate route takes — which is the difference between testing
-the final boss once and testing it until it is right.
-
-Two things about driving that core from Python: it wants `retro_init()` called
-*before* the video/audio/input setters (its setters dereference a pointer that
-`retro_init` constructs, so the documented order segfaults), and the ROM buffer
-has to outlive `retro_load_game`.
-
----
-
-## Music
-
-Two Impulse Tracker modules. The effects are still synthesised — a menu blip
-wants a swept sine, not a recording. The music is an orchestra: see **The
-orchestra** above and `SAMPLES.md`.
-
-Eight channels, and until recently six of them did anything. `CH_CTR` and
-`CH_FX` now carry a countermelody and a timpani, which is most of the
-difference between a melody over a pad and an arrangement. The countermelody
-comes in three shapes — a held third under the tune, brass stabs on the beat,
-or a four-note answer in the back half of the bar where the melody's random
-walk tends to leave a hole — and each theme's style sheet picks one.
-
-The title and the last region also get the **kentongan**: the slit drum,
-high and low alternating. Tung. Tung. Tung. It is the name of the game and for
-a long time it was the one instrument in the bank that never played.
-
-Thirteen themes live in one module as thirteen ranges of one order list, not
-thirteen modules: `spcLoad` is a multi-frame transfer that clears SPC memory —
-and with it every loaded effect — so switching theme by loading a module would
-drop the sound effects and stall the frame an encounter starts on. Loaded once
-at boot, a theme change is a single `spcPlay`. The cost is the 64-pattern
-ceiling, which is why regions get two or three patterns and only the fights get
-four.
-
-`python3 gen_music.py --preview out.wav` renders every theme with a small
-software mixer, for auditioning without a SNES. To check the console rather
-than the composer, `capture.py` can record what the SPC700 actually produced
-(`core.record()` / `core.audio_rms()`) — comparing a twelve-bin pitch-class
-profile of the emulator's output against the same theme from the software
-mixer is how the sampled instruments were verified end to end: 0.97 cosine on
-the title theme, 0.87 on the town theme over a full cycle.
-
-One trap worth naming: with real samples the soundbank passes 32KB, at which
-point smconv stops emitting `SOUNDBANK__` and starts emitting `SOUNDBANK__0`
-and `SOUNDBANK__1` instead. The link then fails with `Unresolved reference to
-"SOUNDBANK__"`, which says nothing whatsoever about instrument samples.
-`checkbank.py` catches it and says so.
-
----
-
-## Playing it
-
-Talk to LA NONNA before the village will let you east. After that the road is
-gated one act at a time. Wells restore the party *and* save — there is one
-before each guardian, because arriving at a boss on a third of a bar is
-bookkeeping, not difficulty. The shop in the village sells supplies and charms;
-charms are one equipment slot each, which is enough.
-
-SLEEP is the mechanic to actually think about. The Sleepers inflict it, a
-sleeping character's gauge stops, and Tung's **SAHUR!** clears it from the whole
-party at once while hitting everything on the field. Tung himself never sleeps.
-In the last act that stops being a convenience and becomes the only reply the
-game has.
+program, no tracker, no sprite sheets drawn by hand. `gen_assets.py` is the
+whole pipeline. Which is fitting, because so is everybody in it.
+
+**[`TECHNICAL.md`](TECHNICAL.md)** is the hardware side — the layer and VRAM
+layout, the raster effects, how the art and the orchestra are generated, the
+tools, and the eight bugs worth writing down.
 
 ## Contributing
 
-Bug reports and focused patches are welcome; see `CONTRIBUTING.md`. Generated
-ROMs, downloaded sample WAVs, compiler output, emulator saves, and development
-captures should not be committed.
+Bug reports and focused patches are welcome; see
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Generated ROMs, downloaded sample WAVs,
+compiler output, emulator saves, and development captures should not be
+committed.
 
 ## License
 
 The project's original code and assets are available under the MIT License; see
-`LICENSE`. The source recordings used by the music pipeline are independently
-dedicated under CC0-1.0; see `SAMPLES.md`.
+[`LICENSE`](LICENSE). The source recordings used by the music pipeline are
+independently dedicated under CC0-1.0; see [`SAMPLES.md`](SAMPLES.md).
