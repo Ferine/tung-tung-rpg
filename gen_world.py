@@ -754,13 +754,13 @@ def generate_world():
                 ";\n"
                 "; One section per region: a tileset and a tilemap are 8KB each\n"
                 "; and a WLA section cannot straddle a bank boundary in 32KB\n"
-                "; LoROM, so they are kept apart region by region.\n\n")
+                "; LoROM, so they are kept apart region by region.\n")
         for r in REGIONS:
             k = r['key'].lower()
-            f.write('.section ".rodata_%s" superfree\n' % k)
+            f.write('\n.section ".rodata_%s" superfree\n' % k)
             for part in ('pic', 'map', 'col', 'pal', 'anm'):
                 f.write('area_%s_%s: .incbin "area_%s.%s"\n' % (k, part, k, part))
-            f.write('.ends\n\n')
+            f.write('.ends\n')
 
     print("world: %d bytes across %d regions" % (total, len(REGIONS)))
     for key, ntiles, walk, na in report:
