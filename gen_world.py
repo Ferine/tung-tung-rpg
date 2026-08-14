@@ -759,7 +759,8 @@ def generate_world():
             k = r['key'].lower()
             f.write('\n.section ".rodata_%s" superfree\n' % k)
             for part in ('pic', 'map', 'col', 'pal', 'anm'):
-                f.write('area_%s_%s: .incbin "area_%s.%s"\n' % (k, part, k, part))
+                f.write('area_%s_%s: .incbin "%s"\n'
+                        % (k, part, g.asset('area_%s.%s' % (k, part))))
             f.write('.ends\n')
 
     print("world: %d bytes across %d regions" % (total, len(REGIONS)))

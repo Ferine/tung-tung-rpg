@@ -18,9 +18,26 @@ from the 16-character page (A-4, "NAME 33 -> 33,34,35,36 / 43,44,45,46 / ..."),
 so a sprite sheet has to be cut on a 16-tile pitch and the C side has to know
 the resulting index. Owning the cut means the index is a number we choose.
 """
+import os
 import struct
 
 TILE_W = 8
+
+# Every binary the ROM embeds lands here rather than in the project root. The
+# .incbin paths the generators emit, the Makefile's ASSETS list, and preview.py
+# all name the same directory, so it is defined once.
+ASSETS = 'assets'
+
+
+def asset(name):
+    """Path of a generated binary, from the project root.
+
+    Joined with a forward slash rather than os.path.join: these strings are
+    written verbatim into the .incbin lines of generated assembly, which is
+    checked in, so a backslash on Windows would make the generators produce a
+    different file than the one in the repository.
+    """
+    return ASSETS + '/' + name
 
 
 def rgb15(r, g, b):
@@ -265,7 +282,14 @@ class Canvas:
         return out
 
 
-def write(path, data):
+def write(name, data):
+    """Write a generated binary to ASSETS, creating the directory if needed.
+
+    Takes a bare filename: the generators name assets the way the .incbin
+    lines do, and only this function knows where they sit on disk.
+    """
+    path = asset(name)
+    os.makedirs(ASSETS, exist_ok=True)
     with open(path, 'wb') as f:
         f.write(data)
     return len(data)

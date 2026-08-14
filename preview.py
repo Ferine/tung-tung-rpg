@@ -8,6 +8,8 @@ if the plane packing or the tilemap entry format were wrong, this would show it.
 import struct
 import sys
 
+import snesgfx as g
+
 
 def read_pal(path):
     data = open(path, 'rb').read()
@@ -107,8 +109,8 @@ def render_anim(key, out):
     strip is simply the .anm file cut into ANIM_PHASES rows."""
     from PIL import Image
 
-    pal = read_pal('area_%s.pal' % key)
-    tiles = read_tiles('area_%s.anm' % key)
+    pal = read_pal(g.asset('area_%s.pal' % key))
+    tiles = read_tiles(g.asset('area_%s.anm' % key))
     if not tiles:
         return None
     n = len(tiles) // 4
@@ -161,23 +163,23 @@ if __name__ == '__main__':
         for key in ('village', 'fields', 'forest', 'shore',
                     'salt', 'fortress', 'hush'):
             out = 'preview-%s.png' % key
-            render_map('area_%s.pic' % key, 'area_%s.pal' % key,
-                       'area_%s.map' % key, 64, 64, out, quads=True)
+            render_map(g.asset('area_%s.pic' % key), g.asset('area_%s.pal' % key),
+                       g.asset('area_%s.map' % key), 64, 64, out, quads=True)
             print('%-24s 512x512' % out)
 
     elif what == 'battle':
         for key in ('night', 'forest', 'shore', 'salt', 'iron', 'void'):
             out = 'preview-bg-%s.png' % key
-            render_map('bg_%s.pic' % key, 'bg_%s.pal' % key,
-                       'bg_%s.map' % key, 32, 32, out)
+            render_map(g.asset('bg_%s.pic' % key), g.asset('bg_%s.pal' % key),
+                       g.asset('bg_%s.map' % key), 32, 32, out)
             print('%-24s 256x256' % out)
 
     elif what == 'sprites':
         palno = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-        render_sheet('sprites.pic', 'sprites.pal',
+        render_sheet(g.asset('sprites.pic'), g.asset('sprites.pal'),
                      'preview-sprites.png', palno=palno)
         print('preview-sprites.png')
-        render_sheet('enemies.pic', 'sprites.pal',
+        render_sheet(g.asset('enemies.pic'), g.asset('sprites.pal'),
                      'preview-enemies.png', palno=palno)
         print('preview-enemies.png')
 

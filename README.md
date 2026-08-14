@@ -365,6 +365,13 @@ XOR to $FFFF, which they do.
 
 ## Tools
 
+Every binary the ROM embeds — tilesets, tilemaps, collision, palettes,
+animation strips, H-DMA tables — is written into `assets/`. The generators name
+them, the `.incbin` lines in `data.asm` and the generated `worlddata.asm`,
+`bgdata.asm`, and `hdmadata.asm` read them from there, and the assembly units
+themselves stay in the root because `snes_rules` globs root `*.asm` into
+`OFILES`.
+
 | file | does |
 |---|---|
 | `gen_assets.py` | driver: runs every generator below |

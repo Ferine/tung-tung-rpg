@@ -3,41 +3,41 @@
 .include "hdr.asm"
 
 .section ".rodata_bg_night" superfree
-bg_night_pic: .incbin "bg_night.pic"
-bg_night_map: .incbin "bg_night.map"
-bg_night_pal: .incbin "bg_night.pal"
+bg_night_pic: .incbin "assets/bg_night.pic"
+bg_night_map: .incbin "assets/bg_night.map"
+bg_night_pal: .incbin "assets/bg_night.pal"
 .ends
 
 .section ".rodata_bg_forest" superfree
-bg_forest_pic: .incbin "bg_forest.pic"
-bg_forest_map: .incbin "bg_forest.map"
-bg_forest_pal: .incbin "bg_forest.pal"
+bg_forest_pic: .incbin "assets/bg_forest.pic"
+bg_forest_map: .incbin "assets/bg_forest.map"
+bg_forest_pal: .incbin "assets/bg_forest.pal"
 .ends
 
 .section ".rodata_bg_shore" superfree
-bg_shore_pic: .incbin "bg_shore.pic"
-bg_shore_map: .incbin "bg_shore.map"
-bg_shore_pal: .incbin "bg_shore.pal"
+bg_shore_pic: .incbin "assets/bg_shore.pic"
+bg_shore_map: .incbin "assets/bg_shore.map"
+bg_shore_pal: .incbin "assets/bg_shore.pal"
 .ends
 
 .section ".rodata_bg_salt" superfree
-bg_salt_pic: .incbin "bg_salt.pic"
-bg_salt_map: .incbin "bg_salt.map"
-bg_salt_pal: .incbin "bg_salt.pal"
+bg_salt_pic: .incbin "assets/bg_salt.pic"
+bg_salt_map: .incbin "assets/bg_salt.map"
+bg_salt_pal: .incbin "assets/bg_salt.pal"
 .ends
 
 .section ".rodata_bg_iron" superfree
-bg_iron_pic: .incbin "bg_iron.pic"
-bg_iron_map: .incbin "bg_iron.map"
-bg_iron_pal: .incbin "bg_iron.pal"
+bg_iron_pic: .incbin "assets/bg_iron.pic"
+bg_iron_map: .incbin "assets/bg_iron.map"
+bg_iron_pal: .incbin "assets/bg_iron.pal"
 .ends
 
 .section ".rodata_bg_void" superfree
-bg_void_pic: .incbin "bg_void.pic"
-bg_void_map: .incbin "bg_void.map"
-bg_void_pal: .incbin "bg_void.pal"
+bg_void_pic: .incbin "assets/bg_void.pic"
+bg_void_map: .incbin "assets/bg_void.map"
+bg_void_pal: .incbin "assets/bg_void.pal"
 .ends
 
 .section ".rodata_bg_dawn" superfree
-bg_dawn_pal: .incbin "bg_dawn.pal"
+bg_dawn_pal: .incbin "assets/bg_dawn.pal"
 .ends

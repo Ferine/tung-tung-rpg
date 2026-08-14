@@ -26,9 +26,9 @@
 ; section" failure.
 
 .section ".rodata_spr" superfree
-sprites_til: .incbin "sprites.pic"
+sprites_til: .incbin "assets/sprites.pic"
 sprites_til_end:
-sprites_pal: .incbin "sprites.pal"
+sprites_pal: .incbin "assets/sprites.pal"
 sprites_pal_end:
 .ends
 
@@ -36,7 +36,7 @@ sprites_pal_end:
 ; section so it lands in one bank -- the C indexes it with a 16-bit offset
 ; added to the base, which only holds if base and blob share a bank.
 .section ".rodata_enemies" superfree
-enemies_pic: .incbin "enemies.pic"
+enemies_pic: .incbin "assets/enemies.pic"
 .ends
 
 ; Eight dialogue portraits, 512 bytes each, block-row-major. Its own section
@@ -45,26 +45,26 @@ enemies_pic: .incbin "enemies.pic"
 ; The title illustration: its own 191-character tileset and a 32x32 map. It
 ; borrows BG1's battle window, which is already the right shape.
 .section ".rodata_title" superfree
-title_pic: .incbin "title.pic"
-title_map: .incbin "title.map"
-title_pal: .incbin "title.pal"
+title_pic: .incbin "assets/title.pic"
+title_map: .incbin "assets/title.map"
+title_pal: .incbin "assets/title.pal"
 .ends
 
 .section ".rodata_faces" superfree
-portraits_pic: .incbin "portraits.pic"
+portraits_pic: .incbin "assets/portraits.pic"
 .ends
 
 .section ".rodata_font" superfree
-font_til: .incbin "font.pic"
+font_til: .incbin "assets/font.pic"
 font_til_end:
-font_pal: .incbin "font.pal"
+font_pal: .incbin "assets/font.pal"
 font_pal_end:
 
 ; Two recolours of the same palette, loaded over BG palettes 0 and 1 for the
 ; duration of a battle so red and green text cost a palette field rather than a
 ; second set of characters.
-fontalert_pal: .incbin "fontalert.pal"
-fontgood_pal: .incbin "fontgood.pal"
+fontalert_pal: .incbin "assets/fontalert.pal"
+fontgood_pal: .incbin "assets/fontgood.pal"
 .ends
 
 ; The regions live in worlddata.asm and the backdrops in bgdata.asm, both

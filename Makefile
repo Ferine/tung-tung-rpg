@@ -65,8 +65,10 @@ checksyms: $(ROMNAME).sfc
 	@python3 checkrom.py $(ROMNAME).sfc
 
 # Everything data.asm .incbin's. All of it is written by the Python
-# generators, not by make, so there is no rule to build them -- say that
-# plainly instead of failing with "no rule to make target".
+# generators into assets/, not by make, so there is no rule to build them --
+# say that plainly instead of failing with "no rule to make target".
+ASSETDIR := assets
+
 AREAS := village fields forest shore salt fortress hush
 AREA_ASSETS := $(foreach a,$(AREAS),\
                  area_$(a).pic area_$(a).map area_$(a).col area_$(a).pal)
@@ -77,8 +79,11 @@ BG_ASSETS := $(foreach b,$(BACKDROPS),bg_$(b).pic bg_$(b).map bg_$(b).pal)
 HDMA_ASSETS := $(foreach s,night forest shore salt iron void field,sky_$(s).tbl) \
                $(foreach i,0 1 2 3 4 5 6 7,wave$(i).tbl)
 
-ASSETS := sprites.pic sprites.pal enemies.pic font.pic font.pal $(HDMA_ASSETS) \
-          fontalert.pal fontgood.pal $(AREA_ASSETS) $(BG_ASSETS) bg_dawn.pal
+ASSETS := $(addprefix $(ASSETDIR)/,\
+            sprites.pic sprites.pal enemies.pic portraits.pic \
+            font.pic font.pal fontalert.pal fontgood.pal \
+            title.pic title.map title.pal \
+            $(HDMA_ASSETS) $(AREA_ASSETS) $(BG_ASSETS) bg_dawn.pal)
 
 data.obj: hdr.asm worlddata.asm bgdata.asm hdmadata.asm $(ASSETS)
 
