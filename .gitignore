@@ -45,9 +45,9 @@ res/soundbank.h
 # Pinned CC0 source recordings are fetched on demand
 samples/*.wav
 
-# Generated previews and development capture sequences
+# Generated previews and development capture sequences. The stills and clips
+# the README embeds are committed, and live in media/ so this stays a scratch
+# directory.
 *-preview.png
 preview-*.png
-shots/*
-!shots/title_final.png
-!shots/battle.png
+shots/

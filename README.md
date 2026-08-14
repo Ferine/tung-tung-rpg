@@ -9,8 +9,12 @@ sleeping. Tonight nobody wakes — something came up the east road and took the
 WAKING out of people. Took it, like a wallet.
 
 <p align="center">
-  <img src="shots/title_final.png" width="384" alt="Tung Tung Sahur title screen">
-  <img src="shots/battle.png" width="384" alt="A battle in Tung Tung Sahur">
+  <img src="media/title-cycle.gif" width="440" alt="The title screen, its logo shine and star field animating">
+</p>
+
+<p align="center">
+  <img src="media/battle.png" width="384" alt="An active-time battle: five-character party, gauges, command window">
+  <img src="media/dialogue.png" width="384" alt="LA NONNA speaking, her portrait framed above the message box">
 </p>
 
 It is a real 4MB LoROM `.sfc` that runs on hardware and on any accurate
@@ -67,10 +71,22 @@ lantern that breathes, mushroom caps that take turns being lit, forge mouths
 that swell, and the tear in Malam Panjang pulling itself open. The salt flat has
 nothing that moves, which is the point of the salt flat.
 
+| | | | |
+|:---:|:---:|:---:|:---:|
+| <img src="media/region-0-village.png" width="200" alt="Kampung Sahur"> | <img src="media/region-1-fields.png" width="200" alt="The east road"> | <img src="media/region-2-forest.png" width="200" alt="Hutan"> | <img src="media/region-3-shore.png" width="200" alt="Pantai"> |
+| **Kampung Sahur** | **the east road** | **Hutan** | **Pantai** |
+| <img src="media/region-4-salt.png" width="200" alt="Padang Garam"> | <img src="media/region-5-fortress.png" width="200" alt="Langit Besi"> | <img src="media/region-6-hush.png" width="200" alt="Malam Panjang"> | |
+| **Padang Garam** | **Langit Besi** | **Malam Panjang** | |
+
 Each region gets its own sky, drawn a scanline at a time — a smooth gradient
 rather than dithered bands, a vignette over the field, and water that shimmers
 under it. The title screen is a picture: a village under a moon, with the logo's
 shine and the star field animated without redrawing a single tile.
+
+<p align="center">
+  <img src="media/shore-water.gif" width="384" alt="The sea at Pantai, crests travelling and the surface shimmering">
+  <img src="media/village-walk.gif" width="384" alt="Walking through Kampung Sahur at night">
+</p>
 
 ## Battles
 
@@ -90,6 +106,11 @@ region.
 Dialogue is JRPG-style: eight 32x32 busts in a frame above the message box, and
 the game works out who is speaking from the line itself.
 
+<p align="center">
+  <img src="media/battle.gif" width="384" alt="An exchange in battle: gauges filling, an attack, damage numbers">
+  <img src="media/boss.gif" width="384" alt="BRR BRR PATAPIM, a 64x64 guardian, in the forest">
+</p>
+
 ## Playing it
 
 | button | does |
@@ -101,6 +122,11 @@ the game works out who is speaking from the line itself.
 | **L / R** | flip the shop page |
 
 There is no talk button — walk into somebody, or into a door, and it happens.
+
+<p align="center">
+  <img src="media/menu.png" width="384" alt="The field menu: party status, levels, HP and MP">
+  <img src="media/shop.png" width="384" alt="The village shop, supplies on one shelf and charms on the other">
+</p>
 
 Talk to LA NONNA before the village will let you east. After that the road is
 gated one act at a time. Wells restore the party *and* save; there is one before

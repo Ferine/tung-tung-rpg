@@ -3,6 +3,7 @@
 *.anm binary
 *.bnk binary
 *.col binary
+*.gif binary
 *.it binary
 *.map binary
 *.pal binary
