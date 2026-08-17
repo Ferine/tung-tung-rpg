@@ -79,13 +79,17 @@ BG_ASSETS := $(foreach b,$(BACKDROPS),bg_$(b).pic bg_$(b).map bg_$(b).pal)
 HDMA_ASSETS := $(foreach s,night forest shore salt iron void field,sky_$(s).tbl) \
                $(foreach i,0 1 2 3 4 5 6 7,wave$(i).tbl)
 
+MODE7_ASSETS := mode7_warp.map mode7_warp.pic mode7_warp.pal
+
 ASSETS := $(addprefix $(ASSETDIR)/,\
             sprites.pic sprites.pal enemies.pic portraits.pic \
             font.pic font.pal fontalert.pal fontgood.pal \
             title.pic title.map title.pal \
-            $(HDMA_ASSETS) $(AREA_ASSETS) $(BG_ASSETS) bg_dawn.pal)
+            $(HDMA_ASSETS) $(MODE7_ASSETS) \
+            $(AREA_ASSETS) $(BG_ASSETS) bg_dawn.pal)
 
 data.obj: hdr.asm worlddata.asm bgdata.asm hdmadata.asm $(ASSETS)
+mode7data.obj: hdr.asm $(addprefix $(ASSETDIR)/,$(MODE7_ASSETS))
 
 $(ASSETS):
 	@echo "$@ is missing -- run 'python3 gen_assets.py' first" >&2; exit 1
@@ -100,7 +104,7 @@ PSFILES := $(CFILES:.c=.ps)
 $(PSFILES): src/ttrpg.h src/gfxmap.h src/sprmap.h src/worldmap.h \
             src/bgmap.h src/hdmamap.h
 
-# res/music.h carries the order ranges of the five themes and is written by
+# res/music.h carries the order ranges of the thirteen themes and is written by
 # gen_music.py, not by make -- they have to come from the module that defines
 # them. Same stale-.ps trap as the others, hence the dependency; and since make
 # cannot build it, say so rather than failing with "no rule to make target".
@@ -117,7 +121,7 @@ assets:
 	python3 gen_assets.py
 
 # The generated graphics and tracker modules are part of the source checkout:
-# they let a contributor build without downloading the 22MB source recordings.
+# they let a contributor build without downloading the 25MB source recordings.
 # pvsneslib's cleanGfx target removes those inputs, so a normal clean must not
 # call it.
 clean: cleanBuildRes cleanRom cleanAudio cleanIntermediates

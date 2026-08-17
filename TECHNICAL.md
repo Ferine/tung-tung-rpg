@@ -78,6 +78,23 @@ library's NMI issues, so the raster takes 1 and 2.
   in ROM; the game advances which one the channel reads, so water ripples for
   three stores a frame instead of rebuilding 450 bytes.
 
+## Mode 7 encounter warp
+
+Field-to-battle transitions briefly become their own full-screen Mode 7 state.
+The generated 128x128-character night field occupies the low-byte plane of
+VRAM words `$0000-$3FFF`; its 8bpp characters occupy the corresponding high
+bytes, exactly as Appendix A-11/A-15 prescribe. A single affine matrix rotates
+the field while its scale falls from `$0600` to `$0080`, making the concentric
+wake-rings rush toward the camera. The existing BG1 mosaic then closes over the
+last part of the fade.
+
+That fixed Mode 7 layout overlaps the normal OBJ, font and field-character
+windows. The warp therefore loads under forced blank and is deliberately
+disposable: before enemy art is streamed, the engine restores the resident
+sprite sheet, font, current region characters, their palettes, Mode 1 and the
+normal BG enables. The field map and both UI/battle maps sit above `$3FFF`, so
+they survive the effect and the battle-return path still needs no region load.
+
 ---
 
 ## Eight bugs worth writing down
@@ -280,7 +297,9 @@ phase, so a broken frame is visible without booting anything.
 
 ## The orchestra
 
-Fifteen instruments, 14KB of BRR, cut from two CC0 libraries (`SAMPLES.md`).
+Eighteen instruments, 14.8KB of BRR, cut from two CC0 libraries
+(`SAMPLES.md`). The latest three — trumpet, tenor trombone and viola spiccato
+— are pinned to the same immutable VSCO-2-CE revision and checked by SHA-256.
 The whole job is one constraint:
 
 **A loop must be a whole number of periods.** BRR is a 16-sample block format
@@ -302,12 +321,13 @@ puts note 60 on a C5 by construction — the same relation the old synthesised
 instruments had for free, when a cycle was 32 samples because they were drawn
 that way.
 
-Glockenspiel and harp are struck and then decay, so both are pitched one-shots
-rather than loops. Looping a note that has already stopped is the single most
-recognisable way for a sampled instrument to sound wrong.
+Glockenspiel, harp and viola spiccato are struck and then decay, so all three
+are pitched one-shots rather than loops. Looping a note that has already
+stopped is the single most recognisable way for a sampled instrument to sound
+wrong.
 
 `checktune.py` measures the finished samples and fails the asset build at 18
-cents. All fifteen come in under 11.
+cents. All eighteen pass.
 
 ## Music
 
@@ -315,12 +335,27 @@ Two Impulse Tracker modules. The effects are still synthesised — a menu blip
 wants a swept sine, not a recording. The music is an orchestra: see **The
 orchestra** above and `SAMPLES.md`.
 
-Eight channels, and until recently six of them did anything. `CH_CTR` and
-`CH_FX` now carry a countermelody and a timpani, which is most of the
-difference between a melody over a pad and an arrangement. The countermelody
-comes in three shapes — a held third under the tune, brass stabs on the beat,
-or a four-note answer in the back half of the bar where the melody's random
-walk tends to leave a hole — and each theme's style sheet picks one.
+The score is authored around eleven original two-bar leitmotifs. Every
+four-measure pattern pairs two of them, moves harmony every measure, and writes
+independent melody, bass, inner voice, pad, ostinato and percussion parts. The
+road's noble contour returns as a distorted final-boss idea and resolves in the
+epilogue; the title grows the namesake three-beat slit-drum call from bell to
+horn to trumpet. Nothing is copied from another score—the kinship is in the
+early-1990s symphonic grammar: brass calls, moving low strings, harp figures,
+organ weight, timpani cadences and strongly contrasted quiet sections.
+
+All eight channels are deliberately occupied in the dense cues. Viola
+spiccato supplies the hostile eighth-note engine, trumpet carries exposed
+heroic statements, tenor trombone reinforces cadences, and organ plus two
+string lines provides a small cathedral sonority. Parts are gently panned
+rather than piled in the centre, with bass and percussion kept central for
+mono compatibility.
+
+The mix is deliberately quiet. Module gain is 100/128 and bright source
+samples are band-limited before BRR conversion, leaving DAC headroom for
+effects even when all eight voices speak. Motifs contain written breaths rather
+than sustaining every source loop indefinitely. A 48ms low-passed echo at low
+level is sent only from upper and inner parts; percussion and bass stay dry.
 
 The title and the last region also get the **kentongan**: the slit drum,
 high and low alternating. Tung. Tung. Tung. It is the name of the game and for
@@ -331,16 +366,21 @@ thirteen modules: `spcLoad` is a multi-frame transfer that clears SPC memory —
 and with it every loaded effect — so switching theme by loading a module would
 drop the sound effects and stall the frame an encounter starts on. Loaded once
 at boot, a theme change is a single `spcPlay`. The cost is the 64-pattern
-ceiling, which is why regions get two or three patterns and only the fights get
-four.
+ceiling, so the complete score is held to 42 patterns. The converted music uses
+39,883 bytes of APU RAM including its 6KB echo buffer; with the effects module
+resident, smconv reports 6,122 bytes still free.
+
+Each range ends with an IT `Bxx` position jump back to its first order, so the
+SPC loops it without briefly sounding the first row of the following theme.
+The 65816-side range check remains as a defensive fallback.
 
 `python3 gen_music.py --preview out.wav` renders every theme with a small
 software mixer, for auditioning without a SNES. To check the console rather
 than the composer, `capture.py` can record what the SPC700 actually produced
 (`core.record()` / `core.audio_rms()`) — comparing a twelve-bin pitch-class
 profile of the emulator's output against the same theme from the software
-mixer is how the sampled instruments were verified end to end: 0.97 cosine on
-the title theme, 0.87 on the town theme over a full cycle.
+mixer is how the sampled instruments are verified end to end after a score
+revision.
 
 One trap worth naming: with real samples the soundbank passes 32KB, at which
 point smconv stops emitting `SOUNDBANK__` and starts emitting `SOUNDBANK__0`
@@ -381,6 +421,7 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `gen_battle.py` | six battle backdrops |
 | `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
+| `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
 | `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
 | `snesgfx.py` | 4bpp/CGRAM/tilemap encoders and the drawing surface |
 | `itwriter.py` | a minimal Impulse Tracker writer |
@@ -427,7 +468,7 @@ has to outlive `retro_load_game`.
 ## Regenerating the assets
 
 The generated graphics and tracker modules needed for a normal build are kept
-in the repository, so a contributor can build without downloading the 22MB of
+in the repository, so a contributor can build without downloading the 25MB of
 source recordings. To rebuild them from their Python sources:
 
 ```sh

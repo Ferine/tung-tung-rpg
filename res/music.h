@@ -31,8 +31,8 @@
 #define MUS_FANFARE_FIRST 34
 #define MUS_FANFARE_LAST  34
 #define MUS_TITLE_FIRST 35
-#define MUS_TITLE_LAST  36
-#define MUS_ENDING_FIRST 37
-#define MUS_ENDING_LAST  39
+#define MUS_TITLE_LAST  37
+#define MUS_ENDING_FIRST 38
+#define MUS_ENDING_LAST  41
 
 #endif

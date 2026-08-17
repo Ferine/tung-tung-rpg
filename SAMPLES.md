@@ -5,12 +5,12 @@ released under **CC0-1.0** — a public domain dedication:
 
 | library | used for | source |
 |---|---|---|
-| VSCO-2-CE | violin section, cello section, contrabass, oboe, flute, horn, pipe organ, timpani | <https://github.com/sgossner/VSCO-2-CE> |
+| VSCO-2-CE | violin and viola sections, cello section, contrabass, oboe, flute, horn, trumpet, tenor trombone, pipe organ, timpani | <https://github.com/sgossner/VSCO-2-CE> |
 | VCSL | concert harp, glockenspiel, slit drum, rope-tension snare, bass drum, hi-hat | <https://github.com/sgossner/VCSL> |
 
-`python3 fetch_samples.py` downloads the fifteen specific recordings into
-`samples/`. They are 21MB of source material for about 14KB of ROM, so they are
-not committed. `fetch_samples.PICKS` is the exact list, with the repository
+`python3 fetch_samples.py` downloads the eighteen specific recordings into
+`samples/`. They are about 25MB of source material for about 15KB of BRR, so
+they are not committed. `fetch_samples.PICKS` is the exact list, with the repository
 path of each file. `fetch_samples.REVISIONS` pins both source repositories to
 exact commits and `fetch_samples.SHA256` verifies every recording before it is
 used, so an upstream branch change cannot silently alter the soundtrack.
@@ -64,9 +64,9 @@ periods fit the block-aligned length exactly, after which
 puts note 60 on a C5 by construction. `checktune.py` measures the finished
 samples and fails the asset build if any is more than 18 cents out.
 
-Glockenspiel and harp are struck and then decay; both are pitched one-shots
-rather than loops, because looping a note that has already stopped is the most
-recognisable way for a sampled instrument to sound wrong.
+Glockenspiel, harp, and viola spiccato are struck and then decay; they are
+pitched one-shots rather than loops, because looping a note that has already
+stopped is the most recognisable way for a sampled instrument to sound wrong.
 
 ## This is how it was done in 1994
 

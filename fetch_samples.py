@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch the CC0 instrument recordings the soundtrack is cut from.
 
-Not committed: they are 25MB of source material for about 20KB of ROM. Run
+Not committed: they are about 25MB of source material for about 15KB of ROM. Run
 this once and `samples/` is populated; gen_music.py needs it and says so if it
 is missing.
 
@@ -53,6 +53,10 @@ PICKS = [
      'Woodwinds/Flute/susNV/LDFlute_susNV_C4_v1_1.wav', 'C5'),
     ('horn', 'VSCO-2-CE',
      'Brass/F Horn/sus/MOHorn_sus_C3_v2_1.wav', 'C4'),
+    ('trumpet', 'VSCO-2-CE',
+     'Brass/Trumpet/sus/Sum_SHTrumpet_sus_C3_v3_rr1.wav', 'C4'),
+    ('trombone', 'VSCO-2-CE',
+     'Brass/Tenor Trombone/sus/tenortbn_sus_D2_v2_1.wav', 'D3'),
     # Numbered rather than named; 37 measures 263.4 Hz, which is a C4.
     ('organ', 'VSCO-2-CE',
      'Keys/Organ/Loud/Rode_Man3Open_37.wav', 'C4'),
@@ -65,6 +69,8 @@ PICKS = [
     # the check is skipped; see gen_music.
     ('glock', 'VCSL',
      'Idiophones/Struck Idiophones/Glockenspiel/glock_medium_C6_01.wav', 'C6'),
+    ('viola_spic', 'VSCO-2-CE',
+     'Strings/Viola Section/spic/Violas_spic_C4_v2_rr1.wav', 'C5'),
 
     # --- one-shots ---------------------------------------------------------
     # The slit drum is the point of the whole game: a kentongan is a slit
@@ -99,9 +105,12 @@ SHA256 = {
     'oboe': 'cbc9cdf1b6ca5765ec67918cd4a19669f792f9c6f755837ab807d3b8e0f3dfa9',
     'flute': '105a6dbced98de7ae04a317bdd3ba1a5c6b90dc94034439b68cce6635e2781df',
     'horn': 'c0c0b157dcde094c4417b7c165d645897cde9ea6d74247bbab0c0e75355e78c3',
+    'trumpet': '4a55ab4d867cfa3499fbcf1c5d8d530f757621a9979aee5b46d3fd69a2931c99',
+    'trombone': 'f71a6d3914ac0daa656553cbd2b50af560897fd31920fb578ac85313d2787b36',
     'organ': '9f3b80ef47d908b8acae4d6e7898a28e8179c3e090d6ee1ff4c326d35ea1d945',
     'harp': '18e6222e8fc11a8106e8d7a875d208835eb5b45598f010b21c786b1482e09869',
     'glock': 'e942cbf502cf6731df2925945fe3234c876cb63f047d91007b6929887f9e4904',
+    'viola_spic': '3b4c0644c38ec7d13e03e3de88bce2dad899eb3c94a6251ec2acc8e6531687a5',
     'slitdrum': '8c4f61b36a13a8559f1777845ee9795bec52e07d2e86f05d50097bee6abd08b0',
     'slitlow': '609a9ae5441a007371e0dc3120d7e6d4ad5d23073f5f4fb3f16d0dc08823dfc4',
     'timpani': '8b39a785901d08dee14dd89914bdf2201e16ee418965e4d903fdb8e280a14d24',

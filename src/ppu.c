@@ -18,6 +18,9 @@ extern char font_til;
 extern char font_pal;
 extern char fontalert_pal;
 extern char fontgood_pal;
+extern char mode7_warp_map;
+extern char mode7_warp_pic, mode7_warp_pic_end;
+extern char mode7_warp_pal;
 
 s16 scrollX, scrollY;
 u8 shakeTimer;
@@ -34,6 +37,8 @@ static u8 hdmaOn;               /* channels 1 and 2 are live */
 static u8 wavePhase;
 static u8 waveActive;           /* this region's water moves */
 static u8 menuPalettePending;   /* 0 none, 1 open, 2 close; serviced in V-blank */
+static u8 mode7On;
+static u8 mode7Phase;
 
 static void hdmaProgram(u8 *skyTbl, u8 *waveTbl);
 static void battlePaletteLoad(u8 which);
@@ -88,6 +93,89 @@ void ppuInit(void) {
     objSizeMode = OBJ_SIZE16_L32;
     curBackdrop = 255;
     menuPalettePending = 0;
+    mode7On = 0;
+    mode7Phase = 0;
+}
+
+/* ---- Mode 7 encounter warp ---------------------------------------------
+ *
+ * The mode's fixed 128x128 map occupies the low byte of VRAM words
+ * $0000-$3FFF and its 8bpp characters occupy the high byte (A-11/A-15). That
+ * overlaps every resident OBJ, the font and the field characters, so this is
+ * intentionally a transient full-screen scene loaded under forced blank.
+ */
+void ppuMode7Start(void) {
+    ppuHdmaSuspend();
+    REG_INIDISP = 0x80;
+    oamClear(0, 0);
+
+    bgInitMapTileSet7((u8 *)&mode7_warp_pic, (u8 *)&mode7_warp_map,
+                      (u8 *)&mode7_warp_pal,
+                      (u16)(&mode7_warp_pic_end - &mode7_warp_pic), 0x0000);
+    setMode7(0);                /* wrap the 1024x1024 field at its edges */
+    REG_CGWSEL = 0x00;
+    REG_CGADSUB = 0x00;
+    scrollX = 0;
+    scrollY = 0;
+    mode7Phase = 0;
+    mode7On = 1;
+    REG_INIDISP = fadeLevel;
+}
+
+/* Called last in the V-blank PPU block. setMode7Rot uses the PPU's signed
+ * multiplier, which the manual permits in Mode 7 during V-blank, and writes
+ * A-D only after all four products are ready. Scale is the number of source
+ * dots sampled per screen dot: falling from $0600 to $0080 makes the rings
+ * rush out at the camera while the field turns underneath them. */
+void ppuMode7Update(void) {
+    u16 scale;
+
+    if (!mode7On || gameState != ST_MODE7_WARP)
+        return;
+
+    scale = mode7Phase < 22
+          ? (u16)(0x0600 - (u16)mode7Phase * 0x0040)
+          : 0x0080;
+    setMode7Scale(scale, scale);
+    setMode7Rot((u8)(mode7Phase * 5));
+
+    /* Centre the display on the generated field's (512,512) pulse. These are
+     * all write-twice registers: low byte first, then high byte. */
+    REG_M7X = 0x80;
+    REG_M7X = 0x00;
+    REG_M7Y = 0x80;
+    REG_M7Y = 0x00;
+    REG_M7HOFS = 0x80;
+    REG_M7HOFS = 0x01;          /* 384 = 512 source - 128 screen centre */
+    REG_M7VOFS = 0x80;
+    REG_M7VOFS = 0x01;
+    mode7Phase++;
+}
+
+/* Restore everything the Mode 7 byte planes clobbered. Called under forced
+ * blank immediately before battleUploadEnemies; the field map, text map and
+ * battle windows live above $3FFF and never moved. The field characters still
+ * need to be present for the no-reload return path after the fight. */
+void ppuMode7Restore(void) {
+    if (!mode7On)
+        return;
+
+    oamInitGfxSet((u8 *)&sprites_til,
+                  (u16)(&sprites_til_end - &sprites_til),
+                  (u8 *)&sprites_pal,
+                  (u16)(&sprites_pal_end - &sprites_pal),
+                  0, VRAM_OBJ, OBJ_SIZE16_L32);
+    dmaCopyVram((u8 *)&font_til, VRAM_FONT, 8192);
+    dmaCopyVram(areaPic(curArea), VRAM_FIELD_GFX, 8192);
+    dmaCopyCGram((u8 *)&font_pal, CG_WIN, 32);
+
+    setMode(BG_MODE1, 0);
+    bgSetEnable(0);
+    bgSetEnable(1);
+    bgSetDisable(2);
+    bgSetScroll(1, 0, 0);
+    REG_MOSAIC = 0;
+    mode7On = 0;
 }
 
 /* Called from fieldLoadArea, which is already inside forced blank. Each region

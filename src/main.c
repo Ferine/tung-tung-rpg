@@ -16,9 +16,11 @@ static void enterState(u8 s);
 static void updateTitle(void);
 static void updateGameOver(void);
 static void updateEnding(void);
+static void updateMode7Warp(void);
 static void drawTitle(void);
 
 static u8 openingPending;
+static u8 mode7WarpTimer;
 
 /* ---- input ------------------------------------------------------------- */
 
@@ -101,8 +103,14 @@ static void enterState(u8 s) {
          * art goes into the second OBJ page. */
         ppuHdmaSuspend();
         REG_INIDISP = 0x80;
+        ppuMode7Restore();
         battleUploadEnemies();
         ppuSetBattleMode();
+        break;
+
+    case ST_MODE7_WARP:
+        mode7WarpTimer = 0;
+        ppuMode7Start();
         break;
 
     case ST_GAMEOVER:
@@ -119,6 +127,16 @@ static void enterState(u8 s) {
     default:
         break;
     }
+}
+
+/* A short affine rush between the field and the fight. It gets its own state
+ * because Mode 7's fixed low/high VRAM planes overlap the resident OBJ, font
+ * and field character windows; ppuMode7Restore puts all three back under the
+ * second fade before battle OAM can name them. */
+static void updateMode7Warp(void) {
+    mode7WarpTimer++;
+    if (mode7WarpTimer >= 28)
+        requestState(ST_BATTLE);
 }
 
 /* ---- title ------------------------------------------------------------- */
@@ -333,6 +351,7 @@ int main(void) {
         ppuTitleCycle();
         ppuFaceService();
         ppuUpdate();
+        ppuMode7Update();
 
         /* The encounter wipe: BG1 dissolves into blocks as the screen fades
          * out, and snaps back on arrival. Driven off the fade rather than its
@@ -369,6 +388,9 @@ int main(void) {
             case ST_ENDING:
                 updateEnding();
                 break;
+            case ST_MODE7_WARP:
+                updateMode7Warp();
+                break;
             default:
                 break;
             }
@@ -380,7 +402,13 @@ int main(void) {
             fadeLevel--;
 
         if (pendingState != ST_NONE && fadeLevel == 0) {
-            enterState(pendingState);
+            /* Battles take the scenic route. The encounter is already built
+             * and its music is already playing; only its VRAM upload waits
+             * until the Mode 7 interstitial has faded away. */
+            if (pendingState == ST_BATTLE && gameState != ST_MODE7_WARP)
+                enterState(ST_MODE7_WARP);
+            else
+                enterState(pendingState);
             pendingState = ST_NONE;
             fadeTarget = FADE_MAX;
         }

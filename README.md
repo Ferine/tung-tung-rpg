@@ -81,7 +81,9 @@ nothing that moves, which is the point of the salt flat.
 Each region gets its own sky, drawn a scanline at a time — a smooth gradient
 rather than dithered bands, a vignette over the field, and water that shimmers
 under it. The title screen is a picture: a village under a moon, with the logo's
-shine and the star field animated without redrawing a single tile.
+shine and the star field animated without redrawing a single tile. Encounters
+drop through a 256-colour Mode 7 night vortex: the field rotates and rushes at
+the camera before the existing mosaic wipe closes over it.
 
 ### The sleepwalkers
 
@@ -159,9 +161,11 @@ game has.
 
 ## The music
 
-Thirteen tracks, played on a fifteen-piece orchestra: violin and cello sections,
-contrabass, horn, oboe, flute, pipe organ, harp, glockenspiel, timpani, and the
-kentongan — the slit drum the game is named after. Eight sound effects,
+Thirteen original symphonic tracks, played on an eighteen-piece orchestra:
+violin, viola and cello sections, contrabass, horn, trumpet, tenor trombone,
+oboe, flute, pipe organ, harp, glockenspiel, timpani, and the kentongan — the
+slit drum the game is named after. Recurring leitmotifs move from woodwind hymn
+to brass overture to cathedral-scale battle music. Eight sound effects are
 synthesised, because a menu blip wants a swept sine and not a recording.
 
 The instruments are cut from CC0 recordings rather than synthesised, which is

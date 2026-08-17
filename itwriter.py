@@ -43,11 +43,17 @@ class Sample:
 
 
 class Module:
-    def __init__(self, name, speed=6, tempo=125, channels=8):
+    def __init__(self, name, speed=6, tempo=125, channels=8,
+                 global_volume=128, channel_pans=None, channel_volumes=None,
+                 message=''):
         self.name = name
         self.speed = speed
         self.tempo = tempo
         self.channels = channels
+        self.global_volume = global_volume
+        self.channel_pans = list(channel_pans or ([32] * channels))
+        self.channel_volumes = list(channel_volumes or ([64] * channels))
+        self.message = message
         self.samples = []
         self.patterns = []          # (rows, {row: {chan: cell}})
         self.orders = []
@@ -156,6 +162,7 @@ def write_it(mod, path):
     pat_n = len(mod.patterns)
     orders = bytes(mod.orders) + b'\xff'
     ord_n = len(orders)
+    message = mod.message.encode('latin1')
 
     header = bytearray(192)
     header[0:4] = b'IMPM'
@@ -166,20 +173,25 @@ def write_it(mod, path):
     struct.pack_into('<H', header, 40, 0x0214)
     struct.pack_into('<H', header, 42, 0x0214)
     struct.pack_into('<H', header, 44, 0x000D)   # stereo|instruments|linear
-    struct.pack_into('<H', header, 46, 0x0000)
-    header[48] = 128                             # global volume
+    struct.pack_into('<H', header, 46, 0x0001 if message else 0x0000)
+    header[48] = mod.global_volume
     header[49] = 48                              # mix volume
     header[50] = mod.speed
     header[51] = mod.tempo
     header[52] = 128
     for c in range(64):
-        header[64 + c] = 32 if c < mod.channels else (32 | 128)
-        header[128 + c] = 64
+        header[64 + c] = (mod.channel_pans[c] if c < mod.channels
+                          else (32 | 128))
+        header[128 + c] = (mod.channel_volumes[c] if c < mod.channels
+                           else 64)
 
     tables = 4 * (ins_n + smp_n + pat_n)
     base = len(header) + ord_n + tables
+    if message:
+        struct.pack_into('<H', header, 54, len(message))
+        struct.pack_into('<I', header, 56, base)
 
-    ins_offsets, blob = [], bytearray()
+    ins_offsets, blob = [], bytearray(message)
     for i in range(ins_n):
         ins_offsets.append(base + len(blob))
         blob += _instrument(i + 1, mod.samples[i].name)

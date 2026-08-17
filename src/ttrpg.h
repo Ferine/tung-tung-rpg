@@ -80,6 +80,7 @@
 #define ST_BATTLE      3
 #define ST_GAMEOVER    4
 #define ST_ENDING      5
+#define ST_MODE7_WARP  6        /* internal field -> battle transition */
 #define ST_NONE      255
 
 extern u8 gameState;
@@ -376,6 +377,9 @@ void ppuFaceService(void);
 void ppuFacePark(void);
 void ppuLoadTitle(void);
 void ppuTitleCycle(void);
+void ppuMode7Start(void);
+void ppuMode7Update(void);
+void ppuMode7Restore(void);
 void ppuUpdate(void);
 extern u8 shakeTimer;
 extern s16 scrollX, scrollY;

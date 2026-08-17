@@ -164,9 +164,9 @@ void audioSfx(u8 which) {
     spcEffect(4, which, (u8)(sfxVol[which] * 16 + 8));
 }
 
-/* Once a frame, from the V-blank window. The order list runs straight through
- * all five themes and then wraps to 0, so "left the range" catches both the
- * end of a theme and the end of the list. */
+/* Once a frame, from the V-blank window. Each generated theme ends in a Bxx
+ * order jump for a clean loop; this range check remains a guard against a
+ * dropped/unsupported tracker command rather than being the audible seam. */
 void audioProcess(void) {
     u8 pos;
 

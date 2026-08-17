@@ -5,12 +5,13 @@
                  to spcEffect(), so it must match the SFX_* constants in
                  src/ttrpg.h -- which is why the Makefile lists this module
                  first in AUDIOFILES.
-  res/ttbgm.it   five themes in one module, as five ranges of one order list.
+  res/ttbgm.it   thirteen themes in one module, as ranges of one order list.
 
-Five themes in one module rather than five modules: spcLoad is a multi-frame
-transfer that clears SPC memory (and therefore the loaded effects with it), and
-a battle that has to wait for one before the first gauge fills reads as a hitch.
-With one module loaded at boot, changing theme is a single spcPlay(order).
+Thirteen themes in one module rather than thirteen modules: spcLoad is a
+multi-frame transfer that clears SPC memory (and therefore the loaded effects
+with it), and a battle that has to wait for one before the first gauge fills
+reads as a hitch. With one module loaded at boot, changing theme is a single
+spcPlay(order).
 
 It also writes res/music.h with those ranges, so the module and the C cannot
 drift.
@@ -141,11 +142,13 @@ def sweep(n, f0, f1, rate=SFX_RATE, shape='sin'):
 #      name       file        rate   attack  loop     what it is for
 TONES = [
     ('bass',     'contra',    7000,   40,     70),   # low sustained strings
-    ('lead',     'oboe',     11000,   50,     80),   # the melody voice
-    ('pad',      'strings',  10000,   60,    100),   # violin section
+    ('lead',     'oboe',      9500,   50,     80),   # the melody voice
+    ('pad',      'strings',   9000,   60,    100),   # violin section
     ('choir',    'organ',     9000,   50,     90),   # the pad under bosses
-    ('horn',     'horn',      9000,   55,     80),   # brass, act openings
-    ('flute',    'flute',    10000,   50,     80),   # the light melody voice
+    ('horn',     'horn',      8500,   55,     80),   # brass, act openings
+    ('brass',    'trumpet',   9000,   45,     80),   # bright heroic statements
+    ('lowbrass', 'trombone',  8000,   55,     85),   # weight under battles
+    ('flute',    'flute',     9000,   50,     80),   # the light melody voice
     ('cello',    'cello',     8000,   50,     80),   # countermelody
 ]
 
@@ -155,11 +158,12 @@ HITS = [
     # holds a note that in life has already stopped, which is the single most
     # recognisable way for a sampled instrument to sound wrong. Both are
     # pitched one-shots instead, which is what the era did with them too.
-    ('bell',     'glock',    13000,  210,   'C6'),
-    ('pluck',    'harp',     11000,  230,   'C3'),
+    ('bell',     'glock',    10500,  210,   'C6'),
+    ('pluck',    'harp',     10000,  230,   'C3'),
+    ('spicc',    'viola_spic', 10000, 180,   'C5'),
     ('kick',     'bassdrum',  9000,  200,   None),
-    ('snare',    'snare',    12000,  170,   None),
-    ('hat',      'hihat',    12000,  110,   None),
+    ('snare',    'snare',    10000,  170,   None),
+    ('hat',      'hihat',     9000,  110,   None),
     ('tom',      'timpani',   8000,  210,   None),
     # The kentongan. Pitched, so the title theme can play a figure on the
     # instrument the character is named after rather than just hitting it.
@@ -189,7 +193,7 @@ def build_instruments(mod, report=False):
         raise SystemExit(
             "%s/ is missing -- run 'python3 fetch_samples.py' first.\n"
             "It pulls the CC0 recordings the soundtrack is cut from; they are\n"
-            "21MB of source for about 16KB of ROM, so they are not committed."
+            "25MB of source for about 15KB of BRR, so they are not committed."
             % SAMPLE_DIR)
 
     ins = {}
@@ -238,12 +242,6 @@ class Pat:
 # Channel allocation, the same in every theme so the mix stays predictable.
 CH_DRUM, CH_BASS, CH_LEAD, CH_ARP, CH_PAD, CH_CTR, CH_HAT, CH_FX = range(8)
 
-MINOR = [0, 2, 3, 5, 7, 8, 10]
-MAJOR = [0, 2, 4, 5, 7, 9, 11]
-DORIAN = [0, 2, 3, 5, 7, 9, 10]
-PHRYG = [0, 1, 3, 5, 7, 8, 10]
-
-
 def chord_notes(root, quality):
     if quality == 'min':
         return [root, root + 3, root + 7]
@@ -256,215 +254,286 @@ def chord_notes(root, quality):
     return [root, root + 4, root + 7, root + 10]
 
 
-# ---- style sheets -------------------------------------------------------
-#
-# A theme is a progression plus one of these. Parameterising rather than
-# switching on a name is what makes thirteen tracks affordable: each is a
-# dozen numbers, not a dozen functions.
+# ---- authored symphonic language ---------------------------------------
+# Each original leitmotif is two bars of eighth-note slots. None sustains and
+# 'r' breathes. Themes pair them into four-bar patterns, then develop the same
+# ideas through different orchestration instead of generating random walks.
 
-STYLE = {
-    # kick/snare/hat are the kit; bass, mel, pad, arp, lead are as before.
-    #
-    # ctr and accent are the orchestra. CH_CTR and CH_FX sat unused through
-    # thirteen themes -- eight channels and six of them doing anything -- so
-    # the brass, the cello and the flute now have somewhere to play, and the
-    # timpani has somewhere to land.
-    #
-    #   ctr     instrument for the countermelody
-    #   ctrmode sustain = a held chord tone under the melody
-    #           stab    = on the beat, for anything with a pulse
-    #           answer  = a phrase in the back half of the bar, in the gap
-    #                     the melody tends to leave
-    #   accent  sixteenths that get a timpani
-    #   call    the kentongan figure -- the slit drum, high and low
-    #           alternating. Tung Tung Tung. It is the title of the game and
-    #           until now it was the one instrument in the bank that never
-    #           played.
-    'town':     dict(kick=(0, 8), snare=(), hat=0, bass='soft',
-                     mel=45, pad='pad', arp=0, lead='bell', drum='drum',
-                     ctr='flute', ctrmode='answer', accent=()),
-    'field':    dict(kick=(0, 8), snare=(), hat=6, bass='soft',
-                     mel=55, pad='pad', arp=0, lead='lead', drum='drum',
-                     ctr='horn', ctrmode='sustain', accent=()),
-    'forest':   dict(kick=(0,), snare=(), hat=0, bass='low',
-                     mel=40, pad='choir', arp=0, lead='pluck', drum='tom',
-                     ctr='cello', ctrmode='sustain', accent=()),
-    'shore':    dict(kick=(0, 8), snare=(), hat=4, bass='soft',
-                     mel=50, pad='pad', arp=1, lead='bell', drum='drum',
-                     ctr='flute', ctrmode='answer', accent=()),
-    'salt':     dict(kick=(0,), snare=(), hat=0, bass='low',
-                     mel=35, pad='choir', arp=1, lead='bell', drum='drum',
-                     ctr='cello', ctrmode='sustain', accent=(0,)),
-    'fortress': dict(kick=(0, 4, 8, 12), snare=(4, 12), hat=2, bass='drive',
-                     mel=60, pad='choir', arp=1, lead='lead', drum='kick',
-                     ctr='horn', ctrmode='stab', accent=(0, 8)),
-    'hush':     dict(kick=(), snare=(), hat=0, bass='drone',
-                     mel=22, pad='choir', arp=0, lead='bell', drum='drum',
-                     ctr='cello', ctrmode='sustain', accent=(0,),
-                     call=(0, 3, 6)),
-    'battle':   dict(kick=(0, 4, 8, 12), snare=(4, 12), hat=2, bass='drive',
-                     mel=70, pad='choir', arp=1, lead='lead', drum='kick',
-                     ctr='horn', ctrmode='stab', accent=(0,)),
-    'boss':     dict(kick=(0, 3, 6, 8, 12), snare=(4, 12), hat=0, bass='drive',
-                     mel=70, pad='choir', arp=1, lead='lead', drum='kick',
-                     ctr='horn', ctrmode='stab', accent=(0, 8)),
-    'final':    dict(kick=(0, 2, 4, 6, 8, 10, 12, 14), snare=(4, 12), hat=1,
-                     bass='drive', mel=75, pad='choir', arp=1, lead='lead',
-                     drum='kick', ctr='horn', ctrmode='stab',
-                     accent=(0, 4, 8, 12)),
-    'title':    dict(kick=(), snare=(), hat=0, bass='drone',
-                     mel=30, pad='choir', arp=0, lead='bell', drum='drum',
-                     ctr='horn', ctrmode='sustain', accent=(0,),
-                     call=(0, 2, 4)),
-    'ending':   dict(kick=(0, 8), snare=(), hat=0, bass='soft',
-                     mel=40, pad='pad', arp=1, lead='bell', drum='drum',
-                     ctr='flute', ctrmode='answer', accent=()),
+MOTIFS = {
+    'noble':   (0, None, 7, 'r', 8, None, 7, 5,
+                3, None, 5, 3, 2, None, 0, 'r'),
+    'hymn':    (0, None, 4, 5, 7, None, 9, 7,
+                5, None, 4, 2, 0, None, 'r', None),
+    'answer':  (7, None, 8, 7, 5, 3, 2, 'r',
+                3, None, 5, 7, 8, 7, 5, 'r'),
+    'mystery': (0, None, 3, 'r', 7, None, 8, 7,
+                3, None, 2, 'r', -2, None, 0, 'r'),
+    'tide':    (0, 4, 7, 9, 7, 4, 2, 4,
+                5, 9, 12, 9, 7, 5, 4, 2),
+    'lament':  (12, None, 11, None, 8, None, 7, 'r',
+                5, None, 3, None, 2, 1, 0, 'r'),
+    'iron':    (0, 1, 0, -5, 0, 1, 3, 1,
+                0, -2, -3, -2, 0, 1, 0, 'r'),
+    'silence': (0, None, None, 'r', 1, None, None, 'r',
+                6, None, 5, None, 1, None, 0, 'r'),
+    'battle':  (0, 0, 3, 5, 7, 5, 3, 2,
+                0, 0, 7, 8, 7, 5, 3, 'r'),
+    'dread':   (0, None, 1, 0, 6, None, 5, 1,
+                0, 1, 3, 1, 0, -2, -1, 'r'),
+    'ascent':  (0, 2, 4, 5, 7, None, 9, 7,
+                5, 4, 2, None, 0, None, 'r', None),
 }
 
 
-def build_theme(mod, ins, name, prog, rows, tempo, speed, style, seed,
-                scale=MINOR):
-    """One theme: len(prog) patterns of `rows` rows, one chord each.
+ORCHESTRATION = {
+    'pastoral': dict(lead='flute', leadvol=40, pad='pad', pad2='pad',
+                     padvol=17, counter='cello', counter_mode='answer',
+                     ostinato='harp', bass='lyrical', percussion='gentle'),
+    'overture': dict(lead='horn', leadvol=43, pad='pad', pad2='cello',
+                     padvol=18, counter='brass', counter_mode='chorale',
+                     ostinato='strings', bass='march',
+                     percussion='procession', accent='lowbrass'),
+    'mystic': dict(lead='flute', leadvol=37, pad='choir', pad2='pad',
+                   padvol=15, counter='cello', counter_mode='contrary',
+                   ostinato='harp_sparse', bass='pedal',
+                   percussion='sparse'),
+    'seascape': dict(lead='flute', leadvol=40, pad='pad', pad2='cello',
+                     padvol=16, counter='cello', counter_mode='answer',
+                     ostinato='harp_roll', bass='lyrical',
+                     percussion='gentle'),
+    'desolate': dict(lead='lead', leadvol=36, pad='choir', pad2='pad',
+                     padvol=14, counter='cello', counter_mode='lament',
+                     ostinato='harp_sparse', bass='pedal',
+                     percussion='sparse'),
+    'cathedral': dict(lead='brass', leadvol=44, pad='choir', pad2='pad',
+                      padvol=17, counter='lowbrass',
+                      counter_mode='brass_stab', ostinato='spicc',
+                      bass='drive', percussion='martial',
+                      accent='lowbrass'),
+    'void': dict(lead='bell', leadvol=31, pad='choir', pad2='cello',
+                 padvol=13, counter='cello', counter_mode='chorale',
+                 ostinato='none', bass='pedal', percussion='ritual'),
+    'combat': dict(lead='brass', leadvol=45, pad='pad', pad2='choir',
+                   padvol=16, counter='horn', counter_mode='brass_stab',
+                   ostinato='spicc', bass='drive', percussion='battle',
+                   accent='lowbrass'),
+    'boss': dict(lead='brass', leadvol=47, pad='choir', pad2='pad',
+                 padvol=17, counter='lowbrass', counter_mode='contrary',
+                 ostinato='spicc', bass='drive', percussion='siege',
+                 accent='lowbrass'),
+    'title': dict(lead='bell', leadvol=33, pad='choir', pad2='horn',
+                  padvol=14, counter='horn', counter_mode='chorale',
+                  ostinato='none', bass='pedal', percussion='ritual'),
+    'resolution': dict(lead='flute', leadvol=40, pad='pad', pad2='cello',
+                       padvol=17, counter='horn', counter_mode='answer',
+                       ostinato='harp', bass='lyrical',
+                       percussion='procession'),
+}
 
-    The melody is a random walk that lands on a chord tone every strong beat
-    and passes through the scale between them -- enough structure to sound
-    written rather than shuffled, and far less to author than sixty-four rows
-    of notes a pattern, thirteen times over.
-    """
-    rng = Rng(seed)
-    st = STYLE[style]
-    first = len(mod.patterns)
-    beat = rows // 16
 
-    for pi, (root, quality) in enumerate(prog):
-        p = Pat(rows)
+def _command(p, row, ch, cmd, param):
+    """Attach a command without erasing a note already in that tracker cell."""
+    old = p.cells.get(row, {}).get(ch, (None, None, None, None, 0))
+    p.put(row, ch, old[0], old[1], old[2], cmd, param)
+
+
+def _write_harmony(p, ins, progression, st):
+    for bar, (root, quality) in enumerate(progression):
         tones = chord_notes(root, quality)
-        sc = [root + s for s in scale]
+        row = bar * 16
+        p.put(row, CH_PAD, tones[0], ins[st['pad']], st['padvol'])
+        p.put(row, CH_HAT, tones[1], ins[st['pad2']], st['padvol'] - 3)
+    p.put(63, CH_PAD, NOTE_CUT)
+    p.put(63, CH_HAT, NOTE_CUT)
+
+
+def _write_bass(p, ins, progression, mode):
+    for bar, (root, quality) in enumerate(progression):
+        tones = chord_notes(root, quality)
+        base = bar * 8
+        if mode == 'pedal':
+            events = ((0, tones[0] - 24, 31),)
+        elif mode == 'lyrical':
+            events = ((0, tones[0] - 12, 36),
+                      (5, tones[2] - 12, 31))
+        elif mode == 'march':
+            events = ((0, tones[0] - 12, 38),
+                      (4, tones[2] - 12, 34))
+        else:
+            events = tuple((slot, tones[0 if slot != 6 else 2] - 12,
+                            39 if slot == 0 else 34)
+                           for slot in (0, 2, 4, 6))
+        for slot, note, vol in events:
+            p.put((base + slot) * 2, CH_BASS, note, ins['bass'], vol)
+    p.put(63, CH_BASS, NOTE_CUT)
+
+
+def _write_ostinato(p, ins, progression, mode):
+    if mode == 'none':
+        return
+    for bar, (root, quality) in enumerate(progression):
+        tones = chord_notes(root, quality)
+        base = bar * 8
+        if mode == 'harp_sparse':
+            slots, inst, vol = (0, 4), 'pluck', 15
+        elif mode == 'harp':
+            slots, inst, vol = (0, 2, 4, 6), 'pluck', 17
+        elif mode == 'harp_roll':
+            slots, inst, vol = range(8), 'pluck', 15
+        elif mode == 'strings':
+            slots, inst, vol = (0, 2, 4, 6), 'spicc', 19
+        else:
+            slots, inst, vol = range(8), 'spicc', 22
+        for i, slot in enumerate(slots):
+            p.put((base + slot) * 2, CH_ARP,
+                  tones[i % len(tones)] + 12, ins[inst], vol)
+
+
+def _write_counter(p, ins, progression, st):
+    inst = st['counter']
+    mode = st['counter_mode']
+    if mode == 'answer':
+        for phrase in (0, 16):
+            for i, slot in enumerate((phrase + 11, phrase + 12,
+                                      phrase + 13, phrase + 14)):
+                root, quality = progression[min(slot // 8, 3)]
+                tones = chord_notes(root, quality)
+                p.put(slot * 2, CH_CTR, tones[(3 - i) % 3] + 12,
+                      ins[inst], 24 if i == 0 else 20)
+    else:
+        for bar, (root, quality) in enumerate(progression):
+            tones = chord_notes(root, quality)
+            base = bar * 8
+            if mode == 'chorale':
+                p.put(base * 2, CH_CTR, tones[2], ins[inst], 20)
+            elif mode == 'contrary':
+                p.put(base * 2, CH_CTR, tones[2], ins[inst], 23)
+                p.put((base + 4) * 2, CH_CTR, tones[1], ins[inst], 19)
+            elif mode == 'lament':
+                for i, slot in enumerate((0, 3, 6)):
+                    p.put((base + slot) * 2, CH_CTR,
+                          tones[(2 - i) % 3], ins[inst], 21 - i * 2)
+            else:
+                for slot in (0, 4):
+                    row = (base + slot) * 2
+                    p.put(row, CH_CTR, tones[0] + 12, ins[inst], 26)
+                    p.put(row + 3, CH_CTR, NOTE_CUT)
+    p.put(63, CH_CTR, NOTE_CUT)
+
+
+def _write_percussion(p, ins, mode):
+    patterns = {
+        'gentle': ((0, 'tom', 31), (16, 'tom', 27)),
+        'sparse': ((0, 'tom', 28), (24, 'drumlo', 22)),
+        'procession': ((0, 'tom', 38), (4, 'snare', 25),
+                       (8, 'kick', 31), (12, 'snare', 25),
+                       (16, 'tom', 36), (20, 'snare', 25),
+                       (24, 'kick', 31), (28, 'snare', 27)),
+        'ritual': ((0, 'drum', 37), (2, 'drumlo', 31),
+                   (4, 'drum', 34), (16, 'drum', 35),
+                   (18, 'drumlo', 29), (20, 'drum', 32)),
+        'martial': ((0, 'tom', 41), (4, 'snare', 31),
+                    (8, 'kick', 36), (12, 'snare', 31),
+                    (16, 'tom', 39), (20, 'snare', 31),
+                    (24, 'kick', 36), (28, 'snare', 33)),
+        'battle': ((0, 'kick', 40), (3, 'kick', 33),
+                   (4, 'snare', 34), (7, 'kick', 34),
+                   (8, 'tom', 41), (12, 'snare', 35),
+                   (16, 'kick', 39), (19, 'kick', 33),
+                   (20, 'snare', 34), (24, 'tom', 40),
+                   (28, 'snare', 36), (30, 'kick', 34)),
+        'siege': ((0, 'tom', 44), (4, 'snare', 35),
+                  (6, 'kick', 37), (8, 'tom', 40),
+                  (12, 'snare', 36), (14, 'kick', 36),
+                  (16, 'tom', 43), (20, 'snare', 36),
+                  (22, 'kick', 37), (24, 'tom', 41),
+                  (28, 'snare', 38), (30, 'kick', 36)),
+    }
+    for slot, inst, vol in patterns[mode]:
+        p.put(slot * 2, CH_DRUM, UNITY, ins[inst], vol)
+
+
+def _write_accents(p, ins, progression, instrument):
+    if not instrument:
+        return
+    for bar in (0, 2):
+        root, quality = progression[bar]
+        row = bar * 16
+        p.put(row, CH_FX, chord_notes(root, quality)[0], ins[instrument], 27)
+        p.put(row + 5, CH_FX, NOTE_CUT)
+
+
+def build_theme(mod, ins, name, progressions, tempo, character, tonic,
+                motif_pairs, speed=6, lead_sequence=None):
+    """Build four-measure phrases with moving harmony and six musical parts."""
+    if len(progressions) != len(motif_pairs):
+        raise ValueError('%s: progression/motif count mismatch' % name)
+    st = ORCHESTRATION[character]
+    first = len(mod.patterns)
+
+    for pi, (progression, pair) in enumerate(zip(progressions, motif_pairs)):
+        if len(progression) != 4 or len(pair) != 2:
+            raise ValueError('%s pattern %d: want four bars/two phrases'
+                             % (name, pi))
+        p = Pat(64)
+        _write_harmony(p, ins, progression, st)
+        _write_bass(p, ins, progression, st['bass'])
+        _write_ostinato(p, ins, progression, st['ostinato'])
+        _write_counter(p, ins, progression, st)
+        _write_percussion(p, ins, st['percussion'])
+        _write_accents(p, ins, progression, st.get('accent'))
+
+        lead = (lead_sequence[pi % len(lead_sequence)] if lead_sequence
+                else st['lead'])
+        for phrase, motif_name in enumerate(pair):
+            for i, event in enumerate(MOTIFS[motif_name]):
+                row = (phrase * 16 + i) * 2
+                if event is None:
+                    continue
+                if event == 'r':
+                    p.put(row, CH_LEAD, NOTE_CUT)
+                else:
+                    p.put(row, CH_LEAD, tonic + 12 + event, ins[lead],
+                          st['leadvol'] if i % 4 == 0 else st['leadvol'] - 6)
+        p.put(63, CH_LEAD, NOTE_CUT)
 
         if pi == 0:
-            p.put(0, CH_DRUM, cmd=1, param=speed)     # Axx speed
-            p.put(0, CH_BASS, cmd=20, param=tempo)    # Txx tempo
-
-        # --- percussion ----------------------------------------------------
-        for s in st['kick']:
-            p.put(s * beat, CH_DRUM, UNITY, ins[st['drum']], 60)
-        for s in st['snare']:
-            p.put(s * beat, CH_DRUM, UNITY, ins['snare'], 54)
-        if st['hat']:
-            for s in range(0, 16, st['hat']):
-                p.put(s * beat, CH_HAT, UNITY, ins['hat'], 24)
-
-        # --- bass ----------------------------------------------------------
-        mode = st['bass']
-        if mode == 'drive':
-            for s in range(16):
-                n = tones[0] - 12
-                if s % 8 == 6:
-                    n = tones[2] - 12
-                p.put(s * beat, CH_BASS, n, ins['bass'], 52)
-        elif mode == 'soft':
-            for s in (0, 6, 8, 14):
-                p.put(s * beat, CH_BASS,
-                      (tones[0] if s < 8 else tones[1]) - 12, ins['bass'], 46)
-        elif mode == 'low':
-            for s in (0, 10):
-                p.put(s * beat, CH_BASS, tones[0] - 24, ins['bass'], 44)
-        else:                                          # drone
-            p.put(0, CH_BASS, tones[0] - 24, ins['bass'], 34)
-            p.put(rows - 1, CH_BASS, NOTE_CUT)
-
-        # --- pad and arpeggio ----------------------------------------------
-        p.put(0, CH_PAD, tones[0], ins[st['pad']], 26)
-        p.put(rows - 1, CH_PAD, NOTE_CUT)
-        if st['arp']:
-            for s in range(16):
-                p.put(s * beat, CH_ARP, tones[s % len(tones)] + 12,
-                      ins['pluck'], 20)
-        else:
-            p.put(0, CH_ARP, tones[1], ins['pad'], 18)
-            p.put(rows - 1, CH_ARP, NOTE_CUT)
-
-        # --- melody ---------------------------------------------------------
-        cur = tones[rng.next() % len(tones)] + 12
-        for s in range(16):
-            r = s * beat
-            strong = (s % 4 == 0)
-            if strong:
-                cand = [t + 12 for t in tones] + [t + 24 for t in tones]
-                cur = min(cand, key=lambda v: abs(v - cur) + rng.next() % 3)
-            elif rng.next() % 100 < st['mel']:
-                near = min(sc, key=lambda v: abs((v + 12) - cur))
-                idx = sc.index(near)
-                cur = sc[(idx + rng.pick([-2, -1, 1, 2])) % len(sc)] + 12 \
-                    + (12 if cur >= root + 24 else 0)
-            else:
-                continue
-            p.put(r, CH_LEAD, cur, ins[st['lead']], 54 if strong else 42)
-
-        # --- the call -------------------------------------------------------
-        # High, low, high: a kentongan has two tones and that is the whole
-        # instrument. Only on themes with no kick, because it shares CH_DRUM.
-        for i, s in enumerate(st.get('call', ())):
-            p.put(s * beat, CH_DRUM, UNITY,
-                  ins['drum' if i % 2 == 0 else 'drumlo'], 56 - i * 6)
-
-        # --- countermelody --------------------------------------------------
-        ctr = st.get('ctr')
-        if ctr:
-            mode = st.get('ctrmode', 'sustain')
-            if mode == 'sustain':
-                # A held third, an octave under the tune. This is the line
-                # that turns a melody over a pad into an arrangement.
-                p.put(0, CH_CTR, tones[1], ins[ctr], 24)
-                p.put(rows - 1, CH_CTR, NOTE_CUT)
-            elif mode == 'stab':
-                for s in (0, 4, 8, 12):
-                    p.put(s * beat, CH_CTR, tones[0] + 12, ins[ctr],
-                          32 if s == 0 else 26)
-                    p.put(s * beat + max(1, beat // 2), CH_CTR, NOTE_CUT)
-            elif mode == 'answer':
-                # Four notes up the scale in the back half of the bar, which
-                # is where the melody's random walk tends to leave a hole.
-                base = sc.index(min(sc, key=lambda v: abs(v - tones[1])))
-                for i, s in enumerate((9, 10, 11, 13)):
-                    p.put(s * beat, CH_CTR, sc[(base + i) % len(sc)] + 12,
-                          ins[ctr], 30 if i == 0 else 24)
-                p.put(rows - 1, CH_CTR, NOTE_CUT)
-
-        # --- timpani --------------------------------------------------------
-        for s in st.get('accent', ()):
-            p.put(s * beat, CH_FX, UNITY, ins['tom'], 44 if s == 0 else 34)
-
+            _command(p, 0, CH_DRUM, 1, speed)
+            _command(p, 0, CH_BASS, 20, tempo)
+        if pi == len(progressions) - 1:
+            _command(p, 63, CH_FX, 2, first)
         p.emit(mod)
 
     last = len(mod.patterns) - 1
-    for i in range(first, last + 1):
-        mod.orders.append(i)
+    mod.orders.extend(range(first, last + 1))
     return name, first, last
 
 
 def build_fanfare(mod, ins):
-    """The victory jingle: the one piece written out rather than generated,
-    because everybody already knows what it is supposed to do."""
+    """A compact brass-and-timpani victory cadence."""
     first = len(mod.patterns)
     p = Pat(32)
-    p.put(0, CH_DRUM, cmd=1, param=5)
-    p.put(0, CH_BASS, cmd=20, param=150)
-
-    root = N('C-5')
-    for r, n in ((0, root), (2, root + 4), (4, root + 7), (6, root + 12)):
-        p.put(r, CH_LEAD, n, ins['bell'], 60)
-        p.put(r, CH_DRUM, UNITY, ins['drum'], 48)
-    p.put(8, CH_LEAD, root + 12, ins['bell'], 64)
-    p.put(8, CH_PAD, root, ins['choir'], 40)
-    p.put(8, CH_ARP, root + 7, ins['pad'], 34)
-    p.put(8, CH_BASS, root - 24, ins['bass'], 54)
-    p.put(16, CH_LEAD, root + 16, ins['bell'], 60)
-    p.put(20, CH_LEAD, root + 19, ins['bell'], 62)
-    p.put(24, CH_LEAD, root + 24, ins['bell'], 64)
-    p.put(24, CH_DRUM, UNITY, ins['snare'], 48)
+    root = N('C-4')
+    for r, n in ((0, root), (2, root + 4), (4, root + 7),
+                 (6, root + 12), (12, root + 7), (16, root + 16),
+                 (20, root + 19), (24, root + 24)):
+        p.put(r, CH_LEAD, n, ins['brass'], 46 if r < 16 else 49)
+    for r, n in ((0, root + 7), (8, root + 12), (16, root + 12),
+                 (24, root + 16)):
+        p.put(r, CH_CTR, n, ins['horn'], 27)
+    p.put(0, CH_DRUM, UNITY, ins['tom'], 42)
+    p.put(8, CH_DRUM, UNITY, ins['snare'], 31)
+    p.put(24, CH_DRUM, UNITY, ins['tom'], 44)
+    p.put(0, CH_BASS, root - 24, ins['bass'], 39)
+    p.put(8, CH_PAD, root, ins['choir'], 24)
+    p.put(8, CH_ARP, root + 7, ins['pad'], 20)
+    p.put(24, CH_HAT, root + 24, ins['bell'], 38)
     p.put(31, CH_PAD, NOTE_CUT)
     p.put(31, CH_ARP, NOTE_CUT)
+    p.put(31, CH_CTR, NOTE_CUT)
+    _command(p, 0, CH_DRUM, 1, 5)
+    _command(p, 0, CH_BASS, 20, 150)
+    _command(p, 31, CH_FX, 2, first)
     p.emit(mod)
     mod.orders.append(first)
     return 'FANFARE', first, first
@@ -479,8 +548,10 @@ def build_sfx():
     def add(name, data):
         mod.add_sample(it.Sample(name, _pad16(list(data)), SFX_RATE))
 
-    add('cursor', _norm(decay(sweep(700, 1400, 1750, shape='sq'), 0.25)))
-    add('confirm', _norm(decay(sweep(1400, 900, 1900, shape='sq'), 0.35)))
+    # Sine blips retain clear UI feedback without a square wave's permanent
+    # stack of bright harmonics on every menu movement.
+    add('cursor', _norm(decay(sweep(700, 1050, 1300), 0.25)))
+    add('confirm', _norm(decay(sweep(1400, 750, 1250), 0.35)))
 
     hit_n = noise(1600, rng, lp=1)
     hit_t = sweep(1600, 260, 90)
@@ -517,90 +588,164 @@ def build_sfx():
 # ---- the music module ---------------------------------------------------
 
 def build_bgm():
-    """Thirteen themes in one module: one per region, three for fights, plus
-    the title, the fanfare and the epilogue.
-
-    One module rather than thirteen because spcLoad is a multi-frame transfer
-    that also clears the loaded effects; with everything resident, changing
-    theme is a single spcPlay(order). The cost is the 64-pattern ceiling, which
-    is why regions get two or three patterns and only the fights get four."""
-    mod = it.Module('TUNG TUNG SAHUR', speed=6, tempo=110, channels=8)
-    ins = build_instruments(mod)
+    """The complete original symphonic score, resident as one SPC module."""
+    mod = it.Module(
+        'TUNG TUNG SAHUR', speed=6, tempo=110, channels=8,
+        global_volume=100,
+        channel_pans=(32, 32, 23, 43, 38, 21, 45, 28),
+        message=('[[SNESMOD]]\n'
+                 'edl 3\n'
+                 'efb 12\n'
+                 'evol 14 14\n'
+                 'efir -1 8 23 36 36 23 8 -1\n'
+                 'eon 3 5 6\n'))
+    ins = build_instruments(mod, report=True)
     sections = []
 
-    A, Bb, B = N('A-3'), N('A#3'), N('B-3')
-    C, Cs, D, Eb = N('C-4'), N('C#4'), N('D-4'), N('D#4')
-    E, F, Fs, G = N('E-4'), N('F-3'), N('F#3'), N('G-3')
+    C3, Cs3, D3, Eb3 = N('C-3'), N('C#3'), N('D-3'), N('D#3')
+    E3, F3, Fs3, G3 = N('E-3'), N('F-3'), N('F#3'), N('G-3')
+    Ab3, A3, Bb3, B3 = N('G#3'), N('A-3'), N('A#3'), N('B-3')
+    C4, Cs4, D4, Eb4 = N('C-4'), N('C#4'), N('D-4'), N('D#4')
+    E4 = N('E-4')
 
-    # The order of these calls is the order of the BGM_* constants in
-    # src/ttrpg.h; audioMusic maps one to the other by name through
-    # res/music.h, so they cannot silently swap.
+    def bars(*chords):
+        return list(chords)
 
-    # Kampung Sahur: warm, slow, somebody's kitchen at 3am.
+    # Kampung Sahur: woodwind hymn, harp and warm chamber strings.
     sections.append(build_theme(
-        mod, ins, 'TOWN', [(F, 'maj'), (C, 'maj'), (G, 'maj')],
-        rows=64, tempo=92, speed=6, style='town', seed=0x1001, scale=MAJOR))
+        mod, ins, 'TOWN', [
+            bars((F3, 'maj'), (C4, 'maj'), (D3, 'min'), (Bb3, 'maj')),
+            bars((G3, 'min'), (C4, 'maj'), (F3, 'maj'), (C4, 'maj')),
+            bars((F3, 'maj'), (A3, 'min'), (Bb3, 'maj'), (C4, 'maj')),
+        ], 92, 'pastoral', F3,
+        [('hymn', 'answer'), ('noble', 'hymn'), ('hymn', 'ascent')],
+        lead_sequence=('flute', 'lead', 'flute')))
 
-    # The east road: the long walk. Aeolian, unhurried.
+    # East road overture: the score's noble idea first appears in brass.
     sections.append(build_theme(
-        mod, ins, 'FIELD', [(A, 'min'), (F, 'maj'), (C, 'maj'), (G, 'maj')],
-        rows=64, tempo=104, speed=6, style='field', seed=0x1111))
+        mod, ins, 'FIELD', [
+            bars((A3, 'min'), (F3, 'maj'), (C4, 'maj'), (G3, 'maj')),
+            bars((D3, 'min'), (A3, 'min'), (E3, 'maj'), (E3, 'maj')),
+            bars((A3, 'min'), (G3, 'maj'), (F3, 'maj'), (E3, 'maj')),
+            bars((A3, 'min'), (C4, 'maj'), (D4, 'min'), (E4, 'maj')),
+        ], 112, 'overture', A3,
+        [('noble', 'ascent'), ('answer', 'noble'),
+         ('lament', 'ascent'), ('noble', 'hymn')],
+        lead_sequence=('horn', 'brass', 'lead', 'brass')))
 
-    # Hutan: dorian, low, almost no percussion. Something is standing still.
+    # Hutan: modal organ haze with fragments answering in the cello.
     sections.append(build_theme(
-        mod, ins, 'FOREST', [(E, 'min'), (C, 'maj'), (D, 'sus')],
-        rows=64, tempo=84, speed=6, style='forest', seed=0x1222, scale=DORIAN))
+        mod, ins, 'FOREST', [
+            bars((E3, 'min'), (D3, 'maj'), (C4, 'maj'), (E3, 'min')),
+            bars((G3, 'maj'), (D4, 'maj'), (A3, 'min'), (B3, 'maj')),
+            bars((E3, 'min'), (C4, 'maj'), (D4, 'sus'), (E3, 'min')),
+        ], 82, 'mystic', E3,
+        [('mystery', 'answer'), ('silence', 'mystery'),
+         ('mystery', 'lament')], lead_sequence=('flute', 'lead', 'flute')))
 
-    # Pantai: wide and open, arpeggios like water.
+    # Pantai: rolling harp figures give the harmony a broad tidal motion.
     sections.append(build_theme(
-        mod, ins, 'SHORE', [(G, 'maj'), (E, 'min'), (C, 'maj')],
-        rows=64, tempo=98, speed=6, style='shore', seed=0x1333, scale=MAJOR))
+        mod, ins, 'SHORE', [
+            bars((G3, 'maj'), (D4, 'maj'), (E3, 'min'), (C4, 'maj')),
+            bars((A3, 'min'), (E3, 'min'), (C4, 'maj'), (D4, 'maj')),
+            bars((G3, 'maj'), (B3, 'min'), (C4, 'maj'), (D4, 'maj')),
+        ], 98, 'seascape', G3,
+        [('tide', 'answer'), ('hymn', 'tide'), ('tide', 'ascent')],
+        lead_sequence=('flute', 'lead', 'flute')))
 
-    # Padang Garam: high, sparse, nothing has grown here in a month.
+    # Padang Garam: exposed oboe over organ, with no conventional drum kit.
     sections.append(build_theme(
-        mod, ins, 'SALT', [(D, 'min'), (Bb, 'maj'), (C, 'sus')],
-        rows=64, tempo=76, speed=6, style='salt', seed=0x1444))
+        mod, ins, 'SALT', [
+            bars((D3, 'min'), (Bb3, 'maj'), (G3, 'min'), (A3, 'maj')),
+            bars((D3, 'min'), (C4, 'maj'), (Bb3, 'maj'), (A3, 'maj')),
+            bars((G3, 'min'), (D3, 'min'), (Eb3, 'maj'), (A3, 'maj')),
+        ], 74, 'desolate', D3,
+        [('lament', 'silence'), ('mystery', 'lament'),
+         ('silence', 'mystery')], lead_sequence=('lead', 'flute', 'lead')))
 
-    # Langit Besi: machinery. Phrygian, because it should feel wrong.
+    # Langit Besi: pipe organ, chromatic trumpet and relentless low strings.
     sections.append(build_theme(
-        mod, ins, 'FORTRESS',
-        [(E, 'min'), (F, 'maj'), (E, 'min'), (Cs, 'dim')],
-        rows=64, tempo=132, speed=6, style='fortress', seed=0x1555,
-        scale=PHRYG))
+        mod, ins, 'FORTRESS', [
+            bars((E3, 'min'), (F3, 'maj'), (E3, 'min'), (D3, 'dim')),
+            bars((E3, 'min'), (C4, 'maj'), (F3, 'maj'), (B3, 'dim')),
+            bars((E3, 'min'), (Eb3, 'maj'), (D3, 'dim'), (F3, 'maj')),
+            bars((E3, 'min'), (F3, 'maj'), (B3, 'dim'), (E3, 'min')),
+        ], 134, 'cathedral', E3,
+        [('iron', 'dread'), ('battle', 'iron'),
+         ('dread', 'battle'), ('iron', 'ascent')],
+        lead_sequence=('brass', 'horn', 'brass', 'brass')))
 
-    # Malam Panjang: two chords, no drums, almost nothing. That is the point.
+    # Malam Panjang: ritual wood and a near-static, dissonant organ field.
     sections.append(build_theme(
-        mod, ins, 'HUSH', [(A, 'min'), (Bb, 'maj')],
-        rows=64, tempo=64, speed=6, style='hush', seed=0x1666, scale=PHRYG))
+        mod, ins, 'HUSH', [
+            bars((A3, 'min'), (Bb3, 'maj'), (A3, 'min'), (Eb3, 'maj')),
+            bars((A3, 'min'), (Fs3, 'dim'), (Bb3, 'maj'), (A3, 'min')),
+        ], 62, 'void', A3,
+        [('silence', 'mystery'), ('dread', 'silence')],
+        lead_sequence=('bell', 'cello')))
 
-    # The encounter.
     sections.append(build_theme(
-        mod, ins, 'BATTLE', [(D, 'min'), (Bb, 'maj'), (C, 'maj'), (A, 'min')],
-        rows=64, tempo=152, speed=6, style='battle', seed=0x2222))
+        mod, ins, 'BATTLE', [
+            bars((D3, 'min'), (Bb3, 'maj'), (C4, 'maj'), (A3, 'maj')),
+            bars((D3, 'min'), (F3, 'maj'), (G3, 'min'), (A3, 'maj')),
+            bars((Bb3, 'maj'), (C4, 'maj'), (D4, 'min'), (A3, 'maj')),
+            bars((D3, 'min'), (C4, 'maj'), (Bb3, 'maj'), (A3, 'maj')),
+        ], 154, 'combat', D3,
+        [('battle', 'iron'), ('noble', 'battle'),
+         ('dread', 'ascent'), ('battle', 'noble')],
+        lead_sequence=('brass', 'horn', 'brass', 'brass')))
 
-    # The guardians: a semitone slide down, the oldest trick there is and
-    # still the one that says "this one is different".
     sections.append(build_theme(
-        mod, ins, 'BOSS', [(D, 'min'), (Cs, 'maj'), (C, 'maj'), (B, 'dim')],
-        rows=64, tempo=168, speed=6, style='boss', seed=0x3333))
+        mod, ins, 'BOSS', [
+            bars((D3, 'min'), (Cs3, 'maj'), (C3, 'maj'), (B3, 'dim')),
+            bars((D3, 'min'), (Ab3, 'maj'), (G3, 'min'), (Cs3, 'dim')),
+            bars((D3, 'min'), (Eb3, 'maj'), (C3, 'min'), (Cs3, 'dim')),
+            bars((D3, 'min'), (C3, 'maj'), (Bb3, 'maj'), (Cs3, 'dim')),
+        ], 166, 'boss', D3,
+        [('dread', 'battle'), ('iron', 'dread'),
+         ('battle', 'lament'), ('dread', 'ascent')],
+        lead_sequence=('lowbrass', 'brass', 'horn', 'brass')))
 
-    # Il Silenzio.
+    # Il Silenzio: the same heroic contour is twisted before its final rise.
     sections.append(build_theme(
-        mod, ins, 'FINAL', [(Eb, 'min'), (B, 'maj'), (Cs, 'dim'), (D, 'min')],
-        rows=64, tempo=182, speed=6, style='final', seed=0x3777, scale=PHRYG))
+        mod, ins, 'FINAL', [
+            bars((Eb3, 'min'), (B3, 'maj'), (Cs4, 'dim'), (D4, 'min')),
+            bars((Eb3, 'min'), (E3, 'maj'), (B3, 'maj'), (D4, 'dim')),
+            bars((Ab3, 'min'), (E3, 'maj'), (Fs3, 'dim'), (D4, 'min')),
+            bars((Eb3, 'min'), (B3, 'maj'), (D4, 'dim'), (Eb3, 'min')),
+        ], 178, 'boss', Eb3,
+        [('dread', 'iron'), ('battle', 'silence'),
+         ('lament', 'dread'), ('iron', 'ascent')],
+        lead_sequence=('lowbrass', 'brass', 'horn', 'brass')))
 
     sections.append(build_fanfare(mod, ins))
 
-    # The title: the field progression at half speed, on bells.
+    # Title begins with the namesake three-beat slit-drum call and grows from
+    # bell to horn to full trumpet without borrowing another game's melody.
     sections.append(build_theme(
-        mod, ins, 'TITLE', [(A, 'min'), (F, 'maj')],
-        rows=64, tempo=76, speed=6, style='title', seed=0x4444))
+        mod, ins, 'TITLE', [
+            bars((A3, 'min'), (F3, 'maj'), (C4, 'maj'), (E3, 'maj')),
+            bars((A3, 'min'), (C4, 'maj'), (D4, 'min'), (E4, 'maj')),
+            bars((F3, 'maj'), (G3, 'maj'), (A3, 'min'), (E3, 'maj')),
+        ], 76, 'title', A3,
+        [('silence', 'noble'), ('hymn', 'ascent'), ('noble', 'ascent')],
+        lead_sequence=('bell', 'horn', 'brass')))
 
-    # Sahur e servito. Major, at last.
+    # The epilogue resolves the road motif in C major and hands it from flute
+    # to horn to trumpet, the score's one unambiguous sunrise.
     sections.append(build_theme(
-        mod, ins, 'ENDING', [(C, 'maj'), (G, 'maj'), (F, 'maj')],
-        rows=64, tempo=88, speed=6, style='ending', seed=0x5555, scale=MAJOR))
+        mod, ins, 'ENDING', [
+            bars((C3, 'maj'), (G3, 'maj'), (A3, 'min'), (F3, 'maj')),
+            bars((D3, 'min'), (A3, 'min'), (F3, 'maj'), (G3, 'maj')),
+            bars((C3, 'maj'), (E3, 'min'), (F3, 'maj'), (G3, 'maj')),
+            bars((F3, 'maj'), (G3, 'maj'), (C4, 'maj'), (C4, 'maj')),
+        ], 90, 'resolution', C3,
+        [('hymn', 'answer'), ('noble', 'hymn'),
+         ('ascent', 'noble'), ('hymn', 'ascent')],
+        lead_sequence=('flute', 'lead', 'horn', 'brass')))
 
+    if len(mod.patterns) >= 64:
+        raise ValueError('soundtrack exceeds SNESMOD 64-pattern budget')
     return mod, sections
 
 
@@ -623,8 +768,8 @@ def write_music_header(sections, path):
 # ---- preview render -----------------------------------------------------
 
 def render(mod, path, rate=32000, max_seconds=140.0):
-    """A crude mixer: volume and note only, no effects beyond Axx/Txx. Enough
-    to hear whether a theme is music."""
+    """A crude stereo mixer: volume, pan and note, with no tracker effects
+    beyond Axx/Txx. Enough to hear whether a theme is music."""
     speed, tempo = mod.speed, mod.tempo
     voices = [None] * mod.channels
     out = []
@@ -652,7 +797,7 @@ def render(mod, path, rate=32000, max_seconds=140.0):
 
             frames = int(rate * (speed * 2.5 / tempo))
             for i in range(frames):
-                acc = 0.0
+                left = right = 0.0
                 for ch in range(mod.channels):
                     v = voices[ch]
                     if v is None:
@@ -666,9 +811,11 @@ def render(mod, path, rate=32000, max_seconds=140.0):
                         else:
                             voices[ch] = None
                             continue
-                    acc += s.data[ip] * gain
+                    pan = mod.channel_pans[ch] / 64.0
+                    left += s.data[ip] * gain * math.cos(pan * math.pi / 2)
+                    right += s.data[ip] * gain * math.sin(pan * math.pi / 2)
                     v[1] = pos + step
-                out.append(acc)
+                out.append((left, right))
                 if len(out) >= limit:
                     break
             if len(out) >= limit:
@@ -676,14 +823,15 @@ def render(mod, path, rate=32000, max_seconds=140.0):
         if len(out) >= limit:
             break
 
-    peak = max((abs(v) for v in out), default=1.0) or 1.0
+    peak = max((max(abs(l), abs(r)) for l, r in out), default=1.0) or 1.0
     import wave
     w = wave.open(path, 'wb')
-    w.setnchannels(1)
+    w.setnchannels(2)
     w.setsampwidth(2)
     w.setframerate(rate)
-    w.writeframes(b''.join(struct.pack('<h', int(v / peak * 26000))
-                           for v in out))
+    w.writeframes(b''.join(struct.pack('<hh', int(l / peak * 26000),
+                                       int(r / peak * 26000))
+                           for l, r in out))
     w.close()
     return len(out) / float(rate)
 

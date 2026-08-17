@@ -11,6 +11,7 @@ Each family lives in its own module so this stays a driver:
     gen_sprites.py  the resident OBJ sheet, the streamed enemy blob, and
                     src/sprmap.h
     gen_hdma.py     the per-scanline colour and scroll tables
+    gen_mode7.py    the affine battle-warp map, characters and palette
     gen_music.py    the Impulse Tracker modules smconv packs into the SPC
                     soundbank
 
@@ -20,6 +21,7 @@ the C code indexes art by names these emit.
 import gen_battle
 import gen_font
 import gen_hdma
+import gen_mode7
 import gen_music
 import gen_title
 import gen_sprites
@@ -32,6 +34,7 @@ def main():
     gen_battle.generate_battle()
     gen_sprites.generate_sprites()
     gen_hdma.generate_hdma()
+    gen_mode7.generate_mode7()
     gen_title.generate_title()
 
     gen_music.main()
