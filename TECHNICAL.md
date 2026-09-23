@@ -420,6 +420,8 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `gen_world.py` | seven regions: tilesets, tilemaps, collision, events, exits |
 | `gen_battle.py` | six battle backdrops |
 | `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
+| `gen_render.py` | raymarches the pre-rendered party and every scene in `render_*.py`, and bakes them into `assets/renders.txt` (needs numpy; not run by `gen_assets.py`) |
+| `render_*.py` | enemy and boss scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`; a key in `SCENES` replaces that `ENEMY_ART` painter |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
 | `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
@@ -475,6 +477,18 @@ source recordings. To rebuild them from their Python sources:
 python3 fetch_samples.py
 python3 gen_assets.py
 make
+```
+
+The party battlers are pre-rendered, and the renders are checked in as
+`assets/renders.txt` rather than produced on every build: they are floating
+point, and numpy on another machine can land one pixel on the other side of a
+colour ramp. `gen_sprites.py` reads the baked file and refuses to run if it is
+older than `gen_render.py`, a `render_*.py` scene module, or the palettes.
+After changing any of them:
+
+```sh
+python3 -m pip install numpy
+python3 gen_render.py
 ```
 
 Pillow is optional and only needed for previews and screenshots:

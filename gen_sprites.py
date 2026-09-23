@@ -17,6 +17,8 @@ OBJ_SIZE16_L32 and battle runs OBJ_SIZE32_L64; the numerals and the menu cursor
 are not sprites at all, they are drawn on the BG2 text layer, which costs
 nothing because that layer is already there and already sits above the OBJs.
 """
+import glob
+import hashlib
 import math
 
 import snesgfx as g
@@ -1200,36 +1202,84 @@ NPC_KINDS = [
      [232, 234, 232, 234, 232, 234]),
 ]
 
-# type id -> (painter, palette). Order must match the EN_* constants in
+# type id -> (render key, painter, palette). Order must match the EN_* constants in
 # src/ttrpg.h; enemyArtOffset is indexed by the same number.
 ENEMY_ART = [
-    (None, None),                       # EN_NONE
-    (lambda: draw_snorfly(),   'P_ENEMY'),
-    (lambda: draw_pilloworm(), 'P_ENEMY'),
-    (lambda: draw_dreambat(),  'P_ENEMY'),
-    (lambda: draw_sandman(),   'P_ENEMY'),
-    (lambda: draw_moth(),      'P_ENEMY'),
-    (lambda: draw_log(),       'P_PATAPIM'),
-    (lambda: draw_jelly(),     'P_TRALA'),
-    (lambda: draw_husk(),      'P_ENEMY'),
-    (lambda: draw_drone(),     'P_ENEMY2'),
-    (lambda: draw_turret(),    'P_ENEMY2'),
-    (lambda: draw_wisp(),      'P_ENEMY'),
-    (lambda: draw_murmur(),    'P_ENEMY'),
-    (lambda: draw_boss_patapim(),   'P_PATAPIM'),
-    (lambda: draw_boss_ngantuk(),   'P_TRALA'),
-    (lambda: draw_boss_sandking(),  'P_ENEMY'),
-    (lambda: draw_boss_crocodilo(), 'P_BOSS'),
-    (lambda: draw_boss_silenzio(0), 'P_ENEMY'),
-    (lambda: draw_boss_silenzio(1), 'P_ENEMY'),
+    (None, None, None),                 # EN_NONE
+    ('snorfly', draw_snorfly,                    'P_ENEMY'),
+    ('pilloworm', draw_pilloworm,                'P_ENEMY'),
+    ('dreambat', draw_dreambat,                  'P_ENEMY'),
+    ('sandman', draw_sandman,                    'P_ENEMY'),
+    ('moth', draw_moth,                          'P_ENEMY'),
+    ('log', draw_log,                            'P_PATAPIM'),
+    ('jelly', draw_jelly,                        'P_TRALA'),
+    ('husk', draw_husk,                          'P_ENEMY'),
+    ('drone', draw_drone,                        'P_ENEMY2'),
+    ('turret', draw_turret,                      'P_ENEMY2'),
+    ('wisp', draw_wisp,                          'P_ENEMY'),
+    ('murmur', draw_murmur,                      'P_ENEMY'),
+    ('boss_patapim', draw_boss_patapim,          'P_PATAPIM'),
+    ('boss_ngantuk', draw_boss_ngantuk,          'P_TRALA'),
+    ('boss_sandking', draw_boss_sandking,        'P_ENEMY'),
+    ('boss_crocodilo', draw_boss_crocodilo,      'P_BOSS'),
+    ('boss_silenzio', lambda: draw_boss_silenzio(0), 'P_ENEMY'),
+    ('boss_silenzio2', lambda: draw_boss_silenzio(1), 'P_ENEMY'),
     # Six of the canon, one per region.
-    (lambda: draw_cappuccino(),  'P_ENEMY2'),
-    (lambda: draw_gusini(),      'P_ENEMY2'),
-    (lambda: draw_ambalabu(),    'P_PATAPIM'),
-    (lambda: draw_octopusini(),  'P_TRALA'),
-    (lambda: draw_glorbo(),      'P_LIRILI'),
-    (lambda: draw_saturnita(),   'P_ENEMY'),
+    ('cappuccino', draw_cappuccino,              'P_ENEMY2'),
+    ('gusini', draw_gusini,                      'P_ENEMY2'),
+    ('ambalabu', draw_ambalabu,                  'P_PATAPIM'),
+    ('octopusini', draw_octopusini,              'P_TRALA'),
+    ('glorbo', draw_glorbo,                      'P_LIRILI'),
+    ('saturnita', draw_saturnita,                'P_ENEMY'),
 ]
+
+
+# ---- the pre-rendered party ---------------------------------------------
+#
+# (who, palette, idle name, action name, action pose). gen_render.py paints
+# these and bakes them into RENDERS; this module only reads that file, so a
+# build needs no numpy and cannot drift with one.
+
+PARTY_RENDERS = [
+    ('tung',    P_TUNG,    32,  36, 'attack'),
+    ('patapim', P_PATAPIM, 40,  44, 'attack'),
+    ('trala',   P_TRALA,   96, 100, 'attack'),
+    ('lirili',  P_LIRILI, 104, 108, 'cast'),
+    ('bombard', P_BOSS,   160, 164, 'attack'),
+]
+
+RENDERS = g.asset('renders.txt')
+
+
+def render_digest():
+    """What the baked renders were made from: the renderer, every render_*.py
+    scene module, and the palettes their ramps index. Line endings are
+    normalised so a CRLF checkout does not read as a change."""
+    h = hashlib.sha256()
+    for path in ['gen_render.py'] + sorted(glob.glob('render_*.py')):
+        with open(path, 'rb') as f:
+            h.update(path.encode() + b'\0')
+            h.update(f.read().replace(b'\r\n', b'\n'))
+    h.update(repr(PALS).encode())
+    return h.hexdigest()
+
+
+def load_renders():
+    """key -> Canvas. Party keys are 'who.pose'; enemy keys are ENEMY_ART's."""
+    with open(RENDERS) as f:
+        lines = [ln.rstrip('\n') for ln in f if not ln.startswith('#')]
+    if lines[0] != 'digest ' + render_digest():
+        raise SystemExit("%s is out of date with the renderer, a render_*.py "
+                         "module, or the palettes: run 'python3 gen_render.py'"
+                         " (needs numpy)" % RENDERS)
+    out, i = {}, 1
+    while i < len(lines):
+        _, key, w, h = lines[i].split()
+        c = Canvas(int(w), int(h))
+        c.px = [[int(ch, 16) for ch in row] for row in lines[i + 1:i + 1 + c.h]]
+        out[key] = c
+        i += 1 + c.h
+    return out
 
 
 def place(sheet, canvas, name, _taken={}):
@@ -1463,16 +1513,12 @@ def generate_sprites():
     for i, (d, f) in enumerate(WALK_ORDER):
         place(sheet, draw_walk(d, f), WALK_BASE + i * 2)
 
-    place(sheet, draw_tung('idle'), 32)
-    place(sheet, draw_tung('attack'), 36)
-    place(sheet, draw_patapim('idle'), 40)
-    place(sheet, draw_patapim('attack'), 44)
-    place(sheet, draw_trala('idle'), 96)
-    place(sheet, draw_trala('attack'), 100)
-    place(sheet, draw_lirili('idle'), 104)
-    place(sheet, draw_lirili('cast'), 108)
-    place(sheet, draw_bombard('idle'), 160)
-    place(sheet, draw_bombard('attack'), 164)
+    # Pre-rendered: baked by gen_render.py. The draw_* painters stay as the
+    # reference each render is compared against.
+    renders = load_renders()
+    for who, _pal, idle, act, pose in PARTY_RENDERS:
+        place(sheet, renders[who + '.idle'], idle)
+        place(sheet, renders[who + '.' + pose], act)
 
     for _key, _pal, art, _poses_ in NPC_KINDS:
         for name, painter, d, f in art:
@@ -1485,12 +1531,13 @@ def generate_sprites():
     # The streamed half.
     blob = bytearray()
     offsets = []
-    for t, (fn, palname) in enumerate(ENEMY_ART):
+    for t, (key, fn, palname) in enumerate(ENEMY_ART):
         if fn is None:
             offsets.append(0)
             continue
         offsets.append(len(blob))
-        blob += block_blob(fn())
+        # A baked render when there is one; the hand-drawn art until then.
+        blob += block_blob(renders[key] if key in renders else fn())
     g.write('enemies.pic', bytes(blob))
 
     # Portraits, in the same block-row-major order: four characters a row,
@@ -1558,7 +1605,7 @@ def generate_sprites():
                     + ",\n")
         f.write("};\n\n")
         f.write("static const u8 enemyPal[%d] = {\n    " % len(ENEMY_ART))
-        f.write(", ".join((p if p else 'P_ENEMY') for _, p in ENEMY_ART))
+        f.write(", ".join((p if p else 'P_ENEMY') for _, _, p in ENEMY_ART))
         f.write("\n};\n\n#endif\n")
 
     print("sprites.pic %d bytes (%d resident tiles)"

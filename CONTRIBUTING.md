@@ -23,7 +23,9 @@ make
 ```
 
 Pillow is optional; install it only for the PNG preview and emulator-capture
-tools.
+tools. numpy is needed only to re-bake the pre-rendered sprites with
+`python3 gen_render.py`, after changing the renderer, a `render_*.py` scene
+module, or the sprite palettes.
 
 ## Before submitting
 
