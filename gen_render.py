@@ -776,14 +776,14 @@ def render_party(who, pose, palette):
 
 def enemy_scenes():
     """Every render_*.py module's SCENES, merged: key -> (scene_fn, materials,
-    size). The keys are ENEMY_ART's; a module that registers one takes that
-    enemy over from its hand-drawn painter."""
+    size). The keys are ENEMY_ART's and PORTRAIT_ART's; a module that
+    registers one takes that sprite over from its hand-drawn painter."""
     import glob
     import importlib
     out = {}
     for path in sorted(glob.glob('render_*.py')):
         mod = importlib.import_module(path[:-3])
-        for key, entry in mod.SCENES.items():
+        for key, entry in getattr(mod, 'SCENES', {}).items():
             if key in out:
                 raise SystemExit('%s: %s is already rendered elsewhere'
                                  % (path, key))
@@ -818,15 +818,35 @@ def bake():
             emit(who + '.' + p, render_party(who, p, gs.PALS[pal]))
 
     scenes = enemy_scenes()
-    known = {key for key, _fn, _pal in gs.ENEMY_ART if key}
+    table = [e for e in gs.ENEMY_ART + gs.PORTRAIT_ART if e[0]]
+    known = {key for key, _fn, _pal in table}
     for key in scenes:
         if key not in known:
-            raise SystemExit('render key %r is not in ENEMY_ART' % key)
-    for key, _fn, pal in gs.ENEMY_ART:
+            raise SystemExit('render key %r is in neither ENEMY_ART nor '
+                             'PORTRAIT_ART' % key)
+    for key, _fn, pal in table:
         if key in scenes:
             scene, materials, size = scenes[key]
             emit(key, render_sprite(scene(), materials,
                                     gs.PALS[getattr(gs, pal)], size))
+    # Battle backdrops: five palettes, the dawn's five for the one that has
+    # it, the palette slot of every character, and the dots.
+    import render_backdrops as rb
+
+    def pal_line(tag, pal):
+        return tag + ' ' + ' '.join('%02x%02x%02x' % tuple(
+            int(round(v * 31)) for v in c) for c in pal)
+
+    for key in sorted(rb.BACKDROPS):
+        r = rb.bake_backdrop(key)
+        out.append('backdrop %s %d' % (key, 1 if 'dawn' in r else 0))
+        out.extend(pal_line('pal', p) for p in r['pals'])
+        if 'dawn' in r:
+            out.extend(pal_line('dawn', p) for p in r['dawn'])
+        out.extend(''.join('%d' % v for v in row) for row in r['slot'])
+        out.extend(''.join('%x' % v for v in row) for row in r['idx'])
+        print('rendered backdrop', key, '(%d characters)' % r['chars'])
+
     with open(gs.RENDERS, 'w', newline='\n') as f:
         f.write('\n'.join(out) + '\n')
 

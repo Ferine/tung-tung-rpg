@@ -1265,7 +1265,8 @@ def render_digest():
 
 
 def load_renders():
-    """key -> Canvas. Party keys are 'who.pose'; enemy keys are ENEMY_ART's."""
+    """key -> Canvas. Party keys are 'who.pose'; the rest are ENEMY_ART's and
+    PORTRAIT_ART's -- and 'backdrop:<region>' for gen_battle.py."""
     with open(RENDERS) as f:
         lines = [ln.rstrip('\n') for ln in f if not ln.startswith('#')]
     if lines[0] != 'digest ' + render_digest():
@@ -1274,7 +1275,22 @@ def load_renders():
                          " (needs numpy)" % RENDERS)
     out, i = {}, 1
     while i < len(lines):
-        _, key, w, h = lines[i].split()
+        head = lines[i].split()
+        if head[0] == 'backdrop':
+            # 'backdrop:<key>' -> dict(pals, dawn, slot, idx); colours are
+            # CGRAM's five bits a channel, written as two hex digits each.
+            key, dawn = head[1], head[2] == '1'
+            n = 5 * (2 if dawn else 1)
+            pals = [[tuple(int(c[j:j + 2], 16) * 8 for j in (0, 2, 4))
+                     for c in ln.split()[1:]] for ln in lines[i + 1:i + 1 + n]]
+            body = lines[i + 1 + n:i + 1 + n + 32 + 256]
+            out['backdrop:' + key] = dict(
+                pals=pals[:5], dawn=pals[5:] if dawn else None,
+                slot=[[int(ch) for ch in row] for row in body[:32]],
+                idx=[[int(ch, 16) for ch in row] for row in body[32:]])
+            i += 1 + n + 32 + 256
+            continue
+        _, key, w, h = head
         c = Canvas(int(w), int(h))
         c.px = [[int(ch, 16) for ch in row] for row in lines[i + 1:i + 1 + c.h]]
         out[key] = c
@@ -1491,16 +1507,16 @@ def face_cappuccina():
     return c
 
 
-# (face, palette). The order is the FACE_* enum in sprmap.h.
+# (render key, face, palette). The order is the FACE_* enum in sprmap.h.
 PORTRAIT_ART = [
-    (face_tung,       'P_TUNG'),
-    (face_nonna,      'P_TUNG'),
-    (face_patapim,    'P_PATAPIM'),
-    (face_trala,      'P_TRALA'),
-    (face_lirili,     'P_LIRILI'),
-    (face_bombard,    'P_BOSS'),
-    (face_silenzio,   'P_ENEMY'),
-    (face_cappuccina, 'P_TUNG'),
+    ('face_tung', face_tung,             'P_TUNG'),
+    ('face_nonna', face_nonna,           'P_TUNG'),
+    ('face_patapim', face_patapim,       'P_PATAPIM'),
+    ('face_trala', face_trala,           'P_TRALA'),
+    ('face_lirili', face_lirili,         'P_LIRILI'),
+    ('face_bombard', face_bombard,       'P_BOSS'),
+    ('face_silenzio', face_silenzio,     'P_ENEMY'),
+    ('face_cappuccina', face_cappuccina, 'P_TUNG'),
 ]
 
 PORTRAIT_NAMES = ['TUNG', 'NONNA', 'PATAPIM', 'TRALA',
@@ -1543,8 +1559,8 @@ def generate_sprites():
     # Portraits, in the same block-row-major order: four characters a row,
     # four rows, so the C side pushes one 128-byte row per DMA.
     faces = bytearray()
-    for fn, _pal in PORTRAIT_ART:
-        faces += block_blob(fn())
+    for key, fn, _pal in PORTRAIT_ART:
+        faces += block_blob(renders[key] if key in renders else fn())
     g.write('portraits.pic', bytes(faces))
 
     with open('src/sprmap.h', 'w') as f:
@@ -1594,7 +1610,7 @@ def generate_sprites():
         f.write("#define FACE_COUNT %d\n\n" % (len(PORTRAIT_ART) + 1))
         f.write("/* Indexed by FACE_* - 1. */\n")
         f.write("static const u8 facePal[%d] = {\n    " % len(PORTRAIT_ART))
-        f.write(", ".join(p for _fn, p in PORTRAIT_ART))
+        f.write(", ".join(p for _k, _fn, p in PORTRAIT_ART))
         f.write("\n};\n\n")
         f.write("/* Byte offset of each design inside enemies.pic. The blob is\n"
                 " * one section and therefore one bank, so base + offset never\n"

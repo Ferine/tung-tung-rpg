@@ -50,10 +50,11 @@ static void battlePaletteLoad(u8 which);
 static dmaMemory tblPtr;
 
 /* CGRAM colour indices. In mode 1 the BG1/BG2 palettes share $00-$7F and OBJ
- * owns $80-$FF (ppu-graphics.md A-17), so the four BG palettes pack in below
- * 64 and the eight OBJ ones start at 128. */
+ * owns $80-$FF (ppu-graphics.md A-17). The field and the windows use BG
+ * palettes 0-3; a battle backdrop adds 4-7; the eight OBJ ones start at 128. */
 #define CG_FIELD    (PAL_FIELD * 16)
 #define CG_BATTLE   (PAL_BATTLE * 16)
+#define CG_BATTLE_HI (4 * 16)        /* a backdrop's palettes 4-7 */
 #define CG_WIN      (PAL_WIN * 16)
 
 void ppuInit(void) {
@@ -288,8 +289,8 @@ void ppuSetBattleMode(void) {
     scrollY = 0;
     bgSetScroll(0, 0, 0);
 
-    /* Red and green glyphs for the duration. The backdrop's tilemap only ever
-     * names palette 2, so 0 and 1 are free here. */
+    /* Red and green glyphs for the duration. The backdrop's tilemap names
+     * palettes 2 and 4-7 and never 0 or 1, so those are free here. */
     dmaCopyCGram((u8 *)&fontalert_pal, PAL_ALERT * 16, 32);
     dmaCopyCGram((u8 *)&fontgood_pal, PAL_GOOD * 16, 32);
     battlePaletteLoad(0);
@@ -313,10 +314,16 @@ void ppuMenuPalette(u8 on) {
     menuPalettePending = on ? 1 : 2;
 }
 
-/* 0 = the region's own sky, 1 = the dawn recolour the epilogue runs on. */
+/* 0 = the region's own sky, 1 = the dawn recolour the epilogue runs on.
+ *
+ * A backdrop is five BG palettes, 2 and 4-7, and its file holds 2-7 the way
+ * CGRAM does. Two copies, because 3 in between is the windows' and must not
+ * be touched; 4-7 are otherwise unused by BG1 and BG2 in every mode. */
 static void battlePaletteLoad(u8 which) {
-    dmaCopyCGram(which ? (u8 *)&bg_dawn_pal : backdropPal(curBackdrop),
-                 CG_BATTLE, 32);
+    u8 *pal = which ? (u8 *)&bg_dawn_pal : backdropPal(curBackdrop);
+
+    dmaCopyCGram(pal, CG_BATTLE, 32);
+    dmaCopyCGram(pal + 64, CG_BATTLE_HI, 128);
 }
 
 void ppuBattlePalette(u8 which) {

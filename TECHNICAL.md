@@ -32,7 +32,7 @@ directly in front of OBJ.2. So:
 
 | layer | contents | note |
 |---|---|---|
-| BG1 | region map / battle backdrop | every tile priority 0 |
+| BG1 | region map / battle backdrop | every tile priority 0; a backdrop uses BG palettes 2 and 4-7 |
 | BG2 | text and windows | every tile priority 1 |
 | BG3 | unused | its palette would overlap BG1's (A-17) |
 | OBJ | characters | priority 2, under the windows |
@@ -418,10 +418,10 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `gen_font.py` | BG2 sheet — glyphs, icons, gauges, window frame, logo letters |
 | `terrain.py` | metatile painters, shared by every region |
 | `gen_world.py` | seven regions: tilesets, tilemaps, collision, events, exits |
-| `gen_battle.py` | six battle backdrops |
+| `gen_battle.py` | six battle backdrops: cuts the baked renders to the 256-character page, one palette per character |
 | `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
 | `gen_render.py` | raymarches the pre-rendered party and every scene in `render_*.py`, and bakes them into `assets/renders.txt` (needs numpy; not run by `gen_assets.py`) |
-| `render_*.py` | enemy and boss scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`; a key in `SCENES` replaces that `ENEMY_ART` painter |
+| `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
 | `gen_music.py` | thirteen themes, eight effects, two `.it` modules |

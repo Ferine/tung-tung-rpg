@@ -46,9 +46,12 @@ def read_tiles(path):
     return tiles
 
 
-def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False):
+def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False,
+               pal_first=0):
     """quads: the file is in the PPU's SC0 SC1 / SC2 SC3 order (A-14) rather
-    than one w-wide array, which is how a 64x64 tilemap has to be stored."""
+    than one w-wide array, which is how a 64x64 tilemap has to be stored.
+    pal_first: the CGRAM palette the file's first sixteen colours load into
+    (a battle backdrop's file starts at 2)."""
     from PIL import Image
     tiles = read_tiles(pic)
     pals = read_pal(pal)
@@ -80,7 +83,7 @@ def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False):
                     # backdrop's map still names palette 1, so wrap rather
                     # than run off the end of a short file.
                     px[mx * 8 + x, my * 8 + y] = \
-                        pals[(palno * 16 + v) % len(pals)]
+                        pals[((palno - pal_first) * 16 + v) % len(pals)]
     img.save(out)
     return img
 
@@ -140,8 +143,9 @@ def render_portraits(out):
     n = len(S.PORTRAIT_ART)
     img = Image.new('RGB', (n * 32 * scale, 32 * scale), (40, 40, 48))
     px = img.load()
-    for i, (fn, palname) in enumerate(S.PORTRAIT_ART):
-        c = fn()
+    renders = S.load_renders()
+    for i, (key, fn, palname) in enumerate(S.PORTRAIT_ART):
+        c = renders[key] if key in renders else fn()
         pal = S.PALS[getattr(S, palname)]
         for y in range(32):
             for x in range(32):
@@ -171,7 +175,8 @@ if __name__ == '__main__':
         for key in ('night', 'forest', 'shore', 'salt', 'iron', 'void'):
             out = 'preview-bg-%s.png' % key
             render_map(g.asset('bg_%s.pic' % key), g.asset('bg_%s.pal' % key),
-                       g.asset('bg_%s.map' % key), 32, 32, out)
+                       g.asset('bg_%s.map' % key), 32, 32, out,
+                       pal_first=2)
             print('%-24s 256x256' % out)
 
     elif what == 'sprites':
