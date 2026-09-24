@@ -1266,7 +1266,8 @@ def render_digest():
 
 def load_renders():
     """key -> Canvas. Party keys are 'who.pose'; the rest are ENEMY_ART's and
-    PORTRAIT_ART's -- and 'backdrop:<region>' for gen_battle.py."""
+    PORTRAIT_ART's -- and 'backdrop:<region>' for gen_battle.py, 'title' for
+    gen_title.py."""
     with open(RENDERS) as f:
         lines = [ln.rstrip('\n') for ln in f if not ln.startswith('#')]
     if lines[0] != 'digest ' + render_digest():
@@ -1289,6 +1290,19 @@ def load_renders():
                 slot=[[int(ch) for ch in row] for row in body[:32]],
                 idx=[[int(ch, 16) for ch in row] for row in body[32:]])
             i += 1 + n + 32 + 256
+            continue
+        if head[0] == 'title':
+            # 'title' -> dict(frames=[5 palettes each], slot, idx).
+            nf, rows = int(head[1]), int(head[2])
+            pl = lines[i + 1:i + 1 + nf * 5]
+            pals = [[tuple(int(c[j:j + 2], 16) * 8 for j in (0, 2, 4))
+                     for c in ln.split()[1:]] for ln in pl]
+            body = lines[i + 1 + nf * 5:i + 1 + nf * 5 + rows * 9]
+            out['title'] = dict(
+                frames=[pals[f * 5:f * 5 + 5] for f in range(nf)],
+                slot=[[int(ch) for ch in row] for row in body[:rows]],
+                idx=[[int(ch, 16) for ch in row] for row in body[rows:]])
+            i += 1 + nf * 5 + rows * 9
             continue
         _, key, w, h = head
         c = Canvas(int(w), int(h))

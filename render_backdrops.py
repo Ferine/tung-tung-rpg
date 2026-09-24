@@ -74,10 +74,10 @@ class Land:
         return self.sdf(p)
 
 
-def _rays(horizon, cam_h, focal):
+def _rays(horizon, cam_h, focal, height=H):
     n = W * SS
     xs = (np.arange(n) + 0.5) / n * PERIOD
-    ys = (np.arange(H * SS) + 0.5) / SS
+    ys = (np.arange(height * SS) + 0.5) / SS
     X, Y = np.meshgrid(xs, ys)
     slope = (horizon - Y) / focal
     ro = np.stack([X.ravel(), np.full(X.size, cam_h), np.zeros(X.size)], 1)
@@ -135,7 +135,8 @@ def render_rgb(b, light=None):
     """The backdrop `b` as floats in [0,1], H x W x 3, before any palette.
     `light` overrides the lighting (the dawn pass)."""
     L = dict(b['light'], **(light or {}))
-    ro, rd = _rays(b['horizon'], b['cam_h'], b['focal'])
+    h = b.get('height', H)
+    ro, rd = _rays(b['horizon'], b['cam_h'], b['focal'], h)
     land = b['land']
     t, hit = _march(land, ro, rd, b['far'])
     rgb = np.tile(np.asarray(L['sky'], float), (len(ro), 1))
@@ -164,15 +165,17 @@ def render_rgb(b, light=None):
     lost = ~hit & (rd[:, 1] < 0)
     rgb[lost] = L['fog']
 
-    img = rgb.reshape(H * SS, W * SS, 3)
-    img = img.reshape(H, SS, W, SS, 3).mean(axis=(1, 3))
-    sky = ~hit.reshape(H * SS, W * SS) & ~lost.reshape(H * SS, W * SS)
-    sky = sky.reshape(H, SS, W, SS).all(axis=(1, 3))
+    img = rgb.reshape(h * SS, W * SS, 3)
+    img = img.reshape(h, SS, W, SS, 3).mean(axis=(1, 3))
+    sky = ~hit.reshape(h * SS, W * SS) & ~lost.reshape(h * SS, W * SS)
+    sky = sky.reshape(h, SS, W, SS).all(axis=(1, 3))
     _sky_details(img, sky, b, L)
     # Under the windows: one flat colour, one character -- and the windows'
     # own navy, not the floor's. A glyph's background is transparent, so
     # whatever sits under the status box shows round every letter in it.
-    img[VISIBLE:] = UNDER_WINDOWS
+    img[b.get('visible', VISIBLE):] = UNDER_WINDOWS
+    if b.get('want_sky'):
+        return img, sky
     return img
 
 
@@ -190,7 +193,7 @@ def _sky_details(img, sky, b, L):
                         + np.asarray(L['sky']) * 0.3
     if b.get('disc'):
         cx, cy, r = b['disc']
-        ys, xs = np.mgrid[0:H, 0:W]
+        ys, xs = np.mgrid[0:img.shape[0], 0:W]
         dx, dy = (xs + 0.5 - cx) / r, (ys + 0.5 - cy) / r
         dd = dx * dx + dy * dy
         inside = (dd < 1) & sky
@@ -244,11 +247,12 @@ def quantise(img, seed=1):
     k-means over its own pixels, every character then moves to whichever
     palette draws it best, and that repeats until it settles."""
     C = img.shape[2]
-    tiles = img.reshape(32, 8, 32, 8, C).transpose(0, 2, 1, 3, 4) \
-        .reshape(1024, 64, C)
+    R, K = img.shape[0] // 8, img.shape[1] // 8
+    tiles = img.reshape(R, 8, K, 8, C).transpose(0, 2, 1, 3, 4) \
+        .reshape(R * K, 64, C)
     # Unique characters only, weighted by how often they appear: the flat
     # sky is one character however much of the screen it covers.
-    flat = tiles.reshape(1024, -1)
+    flat = tiles.reshape(R * K, -1)
     uniq, inv, cnt = np.unique(np.round(flat * 255).astype(np.int32), axis=0,
                                return_inverse=True, return_counts=True)
     inv = inv.ravel()
@@ -294,9 +298,9 @@ def quantise(img, seed=1):
     idx_u = np.stack([
         np.argmin(((ut[i][:, None, :] - pals[lab[i]][None]) ** 2).sum(2), 1)
         for i in range(len(ut))])                     # (U, 64) in 0..14
-    slot = lab[inv].reshape(32, 32)
-    idx = idx_u[inv].reshape(32, 32, 8, 8).transpose(0, 2, 1, 3) \
-        .reshape(256, 256) + 1
+    slot = lab[inv].reshape(R, K)
+    idx = idx_u[inv].reshape(R, K, 8, 8).transpose(0, 2, 1, 3) \
+        .reshape(R * 8, K * 8) + 1
     return pals, idx, slot
 
 
@@ -304,8 +308,9 @@ def fit_budget(pals, idx, slot, budget=BUDGET):
     """Merge the least-missed characters into their nearest neighbours until
     the page holds them. A character that appears once and looks like
     another is the cheapest thing on screen to lose."""
-    cells = idx.reshape(32, 8, 32, 8).transpose(0, 2, 1, 3).reshape(1024, 64)
-    keys = np.concatenate([cells, slot.reshape(1024, 1)], 1)
+    R, K = slot.shape
+    cells = idx.reshape(R, 8, K, 8).transpose(0, 2, 1, 3).reshape(R * K, 64)
+    keys = np.concatenate([cells, slot.reshape(R * K, 1)], 1)
     uniq, inv, cnt = np.unique(keys, axis=0, return_inverse=True,
                                return_counts=True)
     inv = inv.ravel()
@@ -327,9 +332,9 @@ def fit_budget(pals, idx, slot, budget=BUDGET):
         target[target == i] = j
         cnt[j] += cnt[i]
     final = uniq[target[inv]]
-    idx = final[:, :64].reshape(32, 32, 8, 8).transpose(0, 2, 1, 3) \
-        .reshape(256, 256)
-    return idx, final[:, 64].reshape(32, 32), int(alive.sum())
+    idx = final[:, :64].reshape(R, K, 8, 8).transpose(0, 2, 1, 3) \
+        .reshape(R * 8, K * 8)
+    return idx, final[:, 64].reshape(R, K), int(alive.sum())
 
 
 # ---- the six places --------------------------------------------------------

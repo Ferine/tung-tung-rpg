@@ -2,21 +2,13 @@
 #ifndef TITLEMAP_H
 #define TITLEMAP_H
 
-/* The two runs of CGRAM entries the title rotates. Rotating
- * the logo ramp walks the shine down the letters; rotating
- * the star ramp makes the field twinkle. Both are a handful
- * of $2122 writes and no tile is ever touched. */
-#define TITLE_LOGO0 12
-#define TITLE_LOGO_N 4
-#define TITLE_STAR0 3
-#define TITLE_STAR_N 3
-
-static const u16 titleLogoRamp[4] = {
-    0x0D2E, 0x1617, 0x333E, 0x63DF
-};
-
-static const u16 titleStarRamp[3] = {
-    0x498C, 0x6AB5, 0x7FFF
-};
+/* The title animates by palette alone: TITLE_FRAMES blocks of
+ * BG palettes 2-7, one uploaded every TITLE_STEP frames. The
+ * light circling the logo and the twinkling stars are in the
+ * colours; no character is ever rewritten. */
+#define TITLE_FRAMES 8
+#define TITLE_STEP 5
+#define TITLE_PAL_BYTES 192
+#define TITLE_PIC_BYTES 16384
 
 #endif

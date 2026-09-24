@@ -11,6 +11,7 @@ extern char sky_salt_tbl;
 extern char sky_iron_tbl;
 extern char sky_void_tbl;
 extern char sky_field_tbl;
+extern char sky_title_tbl;
 extern char wave0_tbl;
 extern char wave1_tbl;
 extern char wave2_tbl;

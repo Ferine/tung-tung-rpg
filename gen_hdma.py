@@ -98,6 +98,11 @@ SKIES = [
 # vignette on a top-down map reads as a bug rather than as depth.
 FIELD_SKY = dict(horizon=112, top=5, floor_amt=4, band=0)
 
+# The title's own, so it does not inherit whichever region was loaded last.
+# Gentle at the top: the gold logo is BG1 too, and a battle sky's subtract
+# turns gold to mud by the second line of letters.
+TITLE_SKY = dict(horizon=150, top=7, floor_amt=3, band=2)
+
 WAVE_PHASES = 8
 
 
@@ -106,6 +111,7 @@ def generate_hdma():
     for name, kw in SKIES:
         total += g.write('sky_%s.tbl' % name, sky(**kw))
     total += g.write('sky_field.tbl', sky(**FIELD_SKY))
+    total += g.write('sky_title.tbl', sky(**TITLE_SKY))
 
     for i in range(WAVE_PHASES):
         ph = i * (2 * math.pi / WAVE_PHASES)
@@ -126,6 +132,7 @@ def generate_hdma():
             f.write('sky_%s_tbl: .incbin "%s"\n'
                     % (name, g.asset('sky_%s.tbl' % name)))
         f.write('sky_field_tbl: .incbin "%s"\n' % g.asset('sky_field.tbl'))
+        f.write('sky_title_tbl: .incbin "%s"\n' % g.asset('sky_title.tbl'))
         for i in range(WAVE_PHASES):
             f.write('wave%d_tbl: .incbin "%s"\n' % (i, g.asset('wave%d.tbl' % i)))
         f.write('.ends\n')
@@ -137,6 +144,7 @@ def generate_hdma():
         for name, _ in SKIES:
             f.write("extern char sky_%s_tbl;\n" % name)
         f.write("extern char sky_field_tbl;\n")
+        f.write("extern char sky_title_tbl;\n")
         for i in range(WAVE_PHASES):
             f.write("extern char wave%d_tbl;\n" % i)
         f.write("\nstatic u8 *skyTable(u8 n) {\n    switch (n) {\n")
@@ -153,7 +161,7 @@ def generate_hdma():
         f.write("    }\n}\n\n#endif\n")
 
     print("hdma: %d bytes (%d skies, %d wave phases)"
-          % (total, len(SKIES) + 1, WAVE_PHASES))
+          % (total, len(SKIES) + 2, WAVE_PHASES))
 
 
 if __name__ == '__main__':

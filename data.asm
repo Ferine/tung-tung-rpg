@@ -42,8 +42,9 @@ enemies_pic: .incbin "assets/enemies.pic"
 ; Eight dialogue portraits, 512 bytes each, block-row-major. Its own section
 ; for the same reason as the cast: one bank, so ppuFaceService can index it
 ; with 16-bit arithmetic off the base.
-; The title illustration: its own 191-character tileset and a 32x32 map. It
-; borrows BG1's battle window, which is already the right shape.
+; The title illustration: a 512-character tileset (16KB), its map, and one
+; block of BG palettes 2-7 per animation step. On the title BG1 borrows the
+; field's character window; see ppuLoadTitle.
 .section ".rodata_title" superfree
 title_pic: .incbin "assets/title.pic"
 title_map: .incbin "assets/title.map"

@@ -197,48 +197,55 @@ void ppuLoadBackdrop(u8 n) {
  * curBackdrop is invalidated on the way out: ppuLoadBackdrop skips the
  * transfer when the region asks for the backdrop it thinks is already there,
  * and after this it is not. */
+static u8 titleStep, titleTick;
+
+/* Palettes 2 and 4-7 of one animation step, stepping over the windows' 3. */
+static void titlePaletteLoad(u8 step) {
+    u8 *pal = (u8 *)&title_pal + (u16)step * TITLE_PAL_BYTES;
+
+    dmaCopyCGram(pal, CG_BATTLE, 32);
+    dmaCopyCGram(pal + 64, CG_BATTLE_HI, 128);
+}
+
 void ppuLoadTitle(void) {
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
-    dmaCopyVram((u8 *)&title_pic, VRAM_BATTLE_GFX, 8192);
+    /* The rendered title is 512 characters, twice the battle window. BG1
+     * takes the field's window instead -- $3000 up to the text map at $5000
+     * -- which is free here: every way off the title queues a region, and
+     * fieldLoadArea puts the field's characters and map back. The tilemap
+     * stays in the battle window, where ppuSetBattleMode already points. */
+    bgSetGfxPtr(0, VRAM_FIELD_GFX);
+    dmaCopyVram((u8 *)&title_pic, VRAM_FIELD_GFX, TITLE_PIC_BYTES);
     dmaCopyVram((u8 *)&title_map, VRAM_BATTLE_MAP, 2048);
-    dmaCopyCGram((u8 *)&title_pal, CG_BATTLE, 32);
+    titleStep = 0;
+    titleTick = 0;
+    titlePaletteLoad(0);
+    /* Its own sky table: whatever region was loaded last is not the title's
+     * business, and a battle sky's subtract dims the gold logo to brown. */
+    hdmaProgram((u8 *)&sky_title_tbl, (u8 *)0);
     REG_INIDISP = fadeLevel;
     curBackdrop = 255;
 }
 
 
-/* Two runs of CGRAM rotated in place: four entries walk the shine down the
- * logo, three make the stars twinkle. Nothing in VRAM moves, no tile is
- * rewritten, and the whole effect is fourteen writes to $2122.
+/* The title's light circles the logo and its stars twinkle, and both are
+ * nothing but palette: every TITLE_STEP frames the next of TITLE_FRAMES
+ * blocks of BG palettes goes up, 160 bytes of CGRAM DMA. No character is
+ * rewritten.
  *
  * CGRAM takes writes in forced blank, V-blank or H-blank (ppu-graphics.md);
- * this is called from main()'s V-blank window. $2121 sets the entry and $2122
- * is written twice per colour -- low byte then high -- with the address
- * stepping after the second, which is what lets a run be written without
- * touching $2121 again. */
+ * this is called from main()'s V-blank window. */
 void ppuTitleCycle(void) {
-    u8 i, phase;
-    u16 c;
-
     if (gameState != ST_TITLE)
         return;
 
-    phase = (u8)((frameCounter >> 2) & 3);
-    REG_CGADD = (u8)(CG_BATTLE + TITLE_LOGO0);
-    for (i = 0; i < TITLE_LOGO_N; i++) {
-        c = titleLogoRamp[(i + phase) & 3];
-        *CGRAM_PALETTE = (u8)c;
-        *CGRAM_PALETTE = (u8)(c >> 8);
-    }
-
-    phase = (u8)(((frameCounter >> 4) & 0xFF) % TITLE_STAR_N);
-    REG_CGADD = (u8)(CG_BATTLE + TITLE_STAR0);
-    for (i = 0; i < TITLE_STAR_N; i++) {
-        c = titleStarRamp[(i + phase) % TITLE_STAR_N];
-        *CGRAM_PALETTE = (u8)c;
-        *CGRAM_PALETTE = (u8)(c >> 8);
-    }
+    if (++titleTick < TITLE_STEP)
+        return;
+    titleTick = 0;
+    if (++titleStep >= TITLE_FRAMES)
+        titleStep = 0;
+    titlePaletteLoad(titleStep);
 }
 
 

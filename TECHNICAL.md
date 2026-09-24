@@ -49,6 +49,7 @@ $1C00-$1FFF  OBJ characters 1C0-1FF   scratch: the speaking portrait
 $2000-$2FFF  font + window tiles           BG2 character base
 $3000-$3FFF  region tileset                BG1 character base, field
 $4000-$4FFF  region tilemap 64x64          BG1 tilemap base
+             (the title borrows $3000-$4FFF: 512 characters)
 $5000-$53FF  text tilemap 32x32            BG2 tilemap base
 $5400-$57FF  battle tilemap 32x32          BG1 tilemap base, battle
 $6000-$6FFF  battle backdrop tileset       BG1 character base, battle
@@ -237,29 +238,28 @@ coming out wrong on screen.
 
 ## The title screen
 
-191 characters and a 32x32 map, in BG1's battle window — a backdrop is exactly
-that shape, so the title costs no new VRAM layout at all.
+Pre-rendered (`render_title.py`): a hillside village under the moon, and the
+logo as bevelled gold — `gen_title.py`'s own letterforms, given height by a
+distance transform inside each letter and lit through the resulting normals.
+It is a relief, not a raymarch, which is what a logo on a title screen is.
 
-Two things move, and neither touches a tile:
+A shaded logo is mostly unique characters, and the screen comes to 367 — more
+than the 256 the battle window holds. On the title nothing uses the field's
+window, so BG1 points at `$3000` and gets everything up to the text map at
+`$5000`: 512 characters. Every way off the title queues a region, and
+`fieldLoadArea` writes the field's characters and map back over it.
 
-- **The logo's shine.** Its pixels are not one colour but four, chosen by a
-  horizontal band across the letterform. Rotating those four CGRAM entries
-  walks a bright bar down the letters. Eight bytes to `$2122` a frame.
-- **The stars.** Three more entries, rotated slower.
+Two things still move, and neither touches a tile — but the mechanism changed.
+The painted title rotated four CGRAM entries through horizontal bands of a flat
+logo. A shaded logo has no bands, and rotating its ramp would scramble the
+shading. So the title is rendered eight times, with a light circling the
+letters and the stars at different strengths, and the eight pictures are cut
+*together* as one 24-channel image: one set of characters, eight sets of
+palettes. The animation is a 160-byte palette upload every five frames.
 
-The band runs across rather than diagonally for a reason that has nothing to do
-with taste. A diagonal ramp depends on x, so the same letter at two places on
-the line becomes two different sets of tiles — the logo alone came to 181 of
-the 256 characters a page holds, and the screen would not fit. Banding by y
-only means every 'T' in the title is the same 'T'. That one change took the
-picture from 348 characters to 266.
-
-The rest came from the skyline: a smooth ridge gives almost every tile along
-its edge a different profile, so the curve is snapped to even scanlines, which
-halves the distinct heights and is invisible at this size. Stars are one pixel
-each and land at one of four fixed offsets inside their cell — scattered
-freely, a hundred and fifty stars is a hundred and fifty unique characters for
-something the eye reads as texture. Final count: 191.
+The title also has its own sky table now. It used to inherit whichever
+region's H-DMA was programmed last, and a battle sky's subtract turned the gold
+to mud by the second line of letters.
 
 ## Animated tiles
 
@@ -421,7 +421,7 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `gen_battle.py` | six battle backdrops: cuts the baked renders to the 256-character page, one palette per character |
 | `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
 | `gen_render.py` | raymarches the pre-rendered party and every scene in `render_*.py`, and bakes them into `assets/renders.txt` (needs numpy; not run by `gen_assets.py`) |
-| `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop |
+| `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`, `title`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
 | `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
@@ -438,7 +438,7 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `checkbank.py` | fails the build when audio.c and smconv disagree on the soundbank symbol |
 | `checkrom.py` | fails the build if the 4MB LoROM/battery-SRAM header or checksum changes |
 | `checktune.py` | fails the asset build on an instrument more than 18 cents out |
-| `gen_title.py` | the title illustration, its tileset and its cycle ramps |
+| `gen_title.py` | cuts the baked title into 512 characters and eight palette steps; the painted title is its fallback |
 | `sfsample.py` | conditions real recordings into looped SNES samples |
 | `fetch_samples.py` | downloads the CC0 source recordings into `samples/` |
 

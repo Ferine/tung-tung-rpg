@@ -847,6 +847,16 @@ def bake():
         out.extend(''.join('%x' % v for v in row) for row in r['idx'])
         print('rendered backdrop', key, '(%d characters)' % r['chars'])
 
+    # The title: one set of characters and a palette set per animation step.
+    import render_title as rt
+    r = rt.bake_title()
+    out.append('title %d %d' % (len(r['pals']), len(r['slot'])))
+    for frame in r['pals']:
+        out.extend(pal_line('pal', p) for p in frame)
+    out.extend(''.join('%d' % v for v in row) for row in r['slot'])
+    out.extend(''.join('%x' % v for v in row) for row in r['idx'])
+    print('rendered title (%d characters)' % r['chars'])
+
     with open(gs.RENDERS, 'w', newline='\n') as f:
         f.write('\n'.join(out) + '\n')
 
