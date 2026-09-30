@@ -14,16 +14,29 @@ make
 ```
 
 The checked-in graphics and tracker modules are sufficient for a normal build.
-If you change the audio-generation pipeline, fetch its pinned CC0 inputs first:
+If you change the score or the audio-generation pipeline, fetch its pinned CC0
+inputs first (numpy is required for this):
 
 ```sh
 python3 fetch_samples.py
-python3 gen_assets.py
+python3 gen_music.py         # both modules and res/music.h; prints the ARAM budget
+python3 checktune.py         # every instrument's tuning and loop seams
 make
 ```
 
+The score is `themes_*.py`, written in the notation documented at the top of
+`score.py`; the instruments are `orchestra.py`. To hear what a theme does on
+the console rather than what it looks like on paper, play it through an
+emulated SPC700 — it reports loudness, clipping, dropouts and shrillness, and
+writes a WAV:
+
+```sh
+export MESEN_S_CORE=/path/to/mesens_libretro.dylib   # the emulator core
+python3 audition.py FIELD --spectrogram
+```
+
 Pillow is optional; install it only for the PNG preview and emulator-capture
-tools. numpy is needed only to re-bake the pre-rendered sprites with
+tools. numpy is also what re-bakes the pre-rendered sprites with
 `python3 gen_render.py`, after changing the renderer, a `render_*.py` scene
 module, or the sprite palettes.
 
@@ -44,9 +57,10 @@ emulator or on compatible hardware.
 
 If a non-audio generator changes, run the corresponding generator and commit
 its deterministic binary/header output. For audio-pipeline changes, fetch the
-pinned recordings, run `python3 gen_assets.py` (which includes the tuning
-check), and commit `res/ttsfx.it`, `res/ttbgm.it`, and `res/music.h`; do not
-commit `samples/*.wav` or `res/soundbank.*`.
+pinned recordings, run `python3 gen_music.py` and `python3 checktune.py`, and
+commit `res/ttsfx.it`, `res/ttbgm.it`, and `res/music.h`; do not commit
+`samples/`, `build/`, or `res/soundbank.*`. A theme should read `ok` in
+`audition.py` before it is submitted.
 
 Do not commit ROM images, compiler/linker products, emulator saves or states,
 bulk screenshots, caches, or machine-specific paths. Only contribute code,

@@ -3,36 +3,39 @@
  * Order ranges of the themes inside res/ttbgm.it. The game
  * keeps one looping by watching spcGetMusicPosition() and
  * re-issuing spcPlay when the position leaves the range.
- * Every order plays the pattern of the same number, so these
- * hold whether that call reports an order or a pattern. */
+ * These are order numbers, which is what the SPC reports:
+ * themes share patterns across their order lists, so an
+ * order is not the pattern of the same number. */
 #ifndef TT_MUSIC_H
 #define TT_MUSIC_H
 
 #define MUS_TOWN_FIRST 0
-#define MUS_TOWN_LAST  2
-#define MUS_FIELD_FIRST 3
-#define MUS_FIELD_LAST  6
-#define MUS_FOREST_FIRST 7
+#define MUS_TOWN_LAST  3
+#define MUS_FIELD_FIRST 4
+#define MUS_FIELD_LAST  7
+#define MUS_FOREST_FIRST 8
 #define MUS_FOREST_LAST  9
 #define MUS_SHORE_FIRST 10
-#define MUS_SHORE_LAST  12
-#define MUS_SALT_FIRST 13
-#define MUS_SALT_LAST  15
-#define MUS_FORTRESS_FIRST 16
-#define MUS_FORTRESS_LAST  19
-#define MUS_HUSH_FIRST 20
-#define MUS_HUSH_LAST  21
-#define MUS_BATTLE_FIRST 22
-#define MUS_BATTLE_LAST  25
-#define MUS_BOSS_FIRST 26
-#define MUS_BOSS_LAST  29
-#define MUS_FINAL_FIRST 30
-#define MUS_FINAL_LAST  33
-#define MUS_FANFARE_FIRST 34
-#define MUS_FANFARE_LAST  34
-#define MUS_TITLE_FIRST 35
-#define MUS_TITLE_LAST  37
-#define MUS_ENDING_FIRST 38
-#define MUS_ENDING_LAST  41
+#define MUS_SHORE_LAST  13
+#define MUS_SALT_FIRST 14
+#define MUS_SALT_LAST  16
+#define MUS_FORTRESS_FIRST 17
+#define MUS_FORTRESS_LAST  20
+#define MUS_HUSH_FIRST 21
+#define MUS_HUSH_LAST  22
+#define MUS_BATTLE_FIRST 23
+#define MUS_BATTLE_LAST  26
+#define MUS_BOSS_FIRST 27
+#define MUS_BOSS_LAST  31
+#define MUS_FINAL_FIRST 32
+#define MUS_FINAL_LAST  34
+#define MUS_FINAL2_FIRST 35
+#define MUS_FINAL2_LAST  38
+#define MUS_FANFARE_FIRST 39
+#define MUS_FANFARE_LAST  40
+#define MUS_TITLE_FIRST 41
+#define MUS_TITLE_LAST  46
+#define MUS_ENDING_FIRST 47
+#define MUS_ENDING_LAST  50
 
 #endif

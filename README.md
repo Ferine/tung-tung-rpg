@@ -161,17 +161,27 @@ game has.
 
 ## The music
 
-Thirteen original symphonic tracks, played on an eighteen-piece orchestra:
-violin, viola and cello sections, contrabass, horn, trumpet, tenor trombone,
-oboe, flute, pipe organ, harp, glockenspiel, timpani, and the kentongan — the
-slit drum the game is named after. Recurring leitmotifs move from woodwind hymn
-to brass overture to cathedral-scale battle music. Eight sound effects are
-synthesised, because a menu blip wants a swept sine and not a recording.
+Fourteen original themes, written for an orchestra of real recorded instruments
+— strings, woodwinds, horns and low brass, harp and mallets, timpani, and the
+kentongan, the slit drum the game is named after — cut down to a few hundred
+bytes each and played back through the SPC700. Three ideas recur so it reads as
+one score: **the call** (three equal notes and a leap: TUNG. TUNG. TUNG.),
+**the road** (the pilgrim's tune, bright and bugle-like) and **the lullaby**
+(the Sleep's own tune, kind in the village and hollow in the Hush). Il Silenzio
+gets two themes, one for each shape it fights in: the first pleads, the second
+is the same tune with its patience gone.
+
+It is written in a small score language (`score.py`) and checked by machine:
+notes outside an instrument's range and bars of the wrong length are build
+errors, and a bass note under the wrong chord is reported. `audition.py` plays any theme through an
+emulated SPC700 and reports what the DSP actually produced — loudness,
+clipping, dropouts, and how shrill it is.
 
 The instruments are cut from CC0 recordings rather than synthesised, which is
 what a 16-bit RPG score actually is: FF6 and Chrono Trigger are an orchestra
 sliced into a few hundred bytes per instrument and played back through the
-SPC700. See [`SAMPLES.md`](SAMPLES.md) for the sources and the licence.
+SPC700. See [`SAMPLES.md`](SAMPLES.md) for the sources and the licence. The
+eight sound effects are synthesised, soft and short, except the drum.
 
 ---
 

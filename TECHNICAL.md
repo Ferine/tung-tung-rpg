@@ -297,96 +297,200 @@ phase, so a broken frame is visible without booting anything.
 
 ## The orchestra
 
-Eighteen instruments, 14.8KB of BRR, cut from two CC0 libraries
-(`SAMPLES.md`). The latest three — trumpet, tenor trombone and viola spiccato
-— are pinned to the same immutable VSCO-2-CE revision and checked by SHA-256.
-The whole job is one constraint:
+Twenty-seven instruments cut from two CC0 libraries (`SAMPLES.md`), 19.9KB
+of BRR between them. Only the instruments the score actually plays are built
+into the module, so an unused recording costs no ARAM.
 
-**A loop must be a whole number of periods.** BRR is a 16-sample block format
-and a loop can only re-enter at a block boundary, so the loop length has to be
-a multiple of 16 — and 16 has no reason to divide the period of a violin. Cut
-the loop at a round number of samples instead and it is 11.5 periods long, so
-every wrap restarts the waveform half a cycle out of phase. A crossfade hides
-the click but not the pitch: what you hear is the loop frequency itself, a 14Hz
-warble under a sustained note, and it is worse the lower the instrument. The
-contrabass and the harp both did it.
+Three kinds, all in `orchestra.py`:
 
-So `sfsample.py` picks the number of periods, rounds them out to a block
-boundary, and resamples the source by a fraction of a percent until they fit
-exactly. After which
+- **loop** — sustained: strings, winds, brass, organ. An attack, then a loop
+  that is an exact whole number of the instrument's own periods.
+- **shot** — pitched and struck or plucked: harp, marimba, tubular bell,
+  pizzicato bass, timpani, the kentongan. Tuned like a loop, plays once, stops.
+- **hit** — unpitched percussion, triggered at note 60.
 
-    C5Speed = 523.25 * (loop length / periods)
+**Tracker note 60 is middle C** (261.63 Hz) and every instrument is tuned to
+it, so a note number means one pitch everywhere. The score is written in
+sounding pitch, scientific naming. (The previous soundtrack had the whole
+keyboard an octave off its own note names, which put every trumpet and oboe
+line at 900–1800 Hz, where those instruments are at their harshest.)
 
-puts note 60 on a C5 by construction — the same relation the old synthesised
-instruments had for free, when a cycle was 32 samples because they were drawn
-that way.
+### What has to happen to a recording
 
-Glockenspiel, harp and viola spiccato are struck and then decay, so all three
-are pitched one-shots rather than loops. Looping a note that has already
-stopped is the single most recognisable way for a sampled instrument to sound
-wrong.
+A ten-second 44.1 kHz stereo WAV is not a SNES instrument, and every step
+below is here because doing it carelessly once produced an audible fault.
 
-`checktune.py` measures the finished samples and fails the asset build at 18
-cents. All eighteen pass.
+- **A real low-pass before decimation.** The first version averaged groups of
+  samples, which is not a filter: everything above the new Nyquist folded back
+  into the band as a fixed shimmer of inharmonic partials under every note.
+  `sfsample.sample_at` is a Kaiser-windowed sinc, the same for every ratio.
+  Measured on the DSP, the share of a trumpet's energy that sits on harmonics
+  of the note rose from 50% (high notes) to 98%.
+- **The loop is contiguous with its attack.** It used to be cut one loop-length
+  *past* the attack, so the two did not meet, and four of nine instruments
+  ticked once per note (a 5–7× step). The loop start is now chosen where the
+  source is most periodic over the loop length and best matches the tail of the
+  attack, and the head is blended into it.
+- **The loop wraps into what precedes it.** smconv's BRR encoder predicts each
+  block from the samples before it, and at the wrap those are the *end* of the
+  loop. If the end and the attack's tail differ, the first loop block decodes
+  wrong on every pass. The loop's last samples are made to equal the samples
+  before its start.
+- **Whole periods, on 16-sample blocks.** A loop can only re-enter at a BRR
+  block boundary, so its length is a multiple of 16 — and 16 has no reason to
+  divide a violin's period. Cut at a round number the loop is 11½ periods
+  long, and what you hear is the loop frequency itself, a warble under a
+  sustained note. The source is resampled by a fraction of a percent until *k*
+  periods fit the block-aligned length, after which
+  `C5Speed = 261.63 × (loop length / periods)`.
+- **Samples per cycle is the timbre.** `p` samples per cycle keeps `p/2`
+  harmonics, independent of pitch; 24–32 is the range used. It also fixes the
+  cost: bytes scale with `p × f₀`, so a bass is nearly free and a piccolo is
+  not.
+- **Pitch is measured, never assumed.** `checktune.py` measures the finished
+  loops (upsampled 8×) and fails the build over 18 cents; they all measure
+  within a cent. It also checks the seams: no join or wrap may step more than
+  the loop's own steepest ordinary step. Pitched one-shots are measured from the
+  recording — by spectral peak for bars, by period for strings — and tuned to
+  the *measured* pitch, because a zither string and a marimba bar are not on
+  the equal-tempered grid. Both libraries name files an octave below where they
+  sound, and the kentongan and the glockenspiel of the old score were
+  mislabelled by 1½ octaves and one octave; the title theme's slit-drum figure
+  never sounded like what was written.
+- **Shape the top.** `tilt` (dB per octave above 1 kHz) and `bw` (harmonics
+  kept) soften the brightest recordings before they are pitched around the
+  keyboard: solo violin, trumpet, organ, oboe, the metal percussion.
+
+**Levels.** Every sample is normalised to the same peak; `gv`, the sample's
+global volume (0–64, unity at 64, so it can only turn things *down*), balances
+them. `LEVELS` in `orchestra.py` was set by rendering each instrument at
+tracker volume 40 through the emulated DSP and matching K-weighted loudness, so
+on any sustained instrument **volume 40 is mezzo-forte and means the same
+loudness**. Measured: every sustained instrument lands within ±0.2 LUFS.
+
+Warm to harsh, same tune, same accompaniment, equal loudness, ear-weighted
+share of energy in 2–6 kHz: horn (−20 dB), clarinet, flute, oboe, strings
+section, viola, cello, organ, solo violin, **trumpet (−4 dB)**. That table is the
+reason the score has no trumpet lead.
 
 ## Music
 
-Two Impulse Tracker modules. The effects are still synthesised — a menu blip
-wants a swept sine, not a recording. The music is an orchestra: see **The
-orchestra** above and `SAMPLES.md`.
+Fourteen original themes, written in a small score language and compiled to an
+Impulse Tracker module for smconv:
 
-The score is authored around eleven original two-bar leitmotifs. Every
-four-measure pattern pairs two of them, moves harmony every measure, and writes
-independent melody, bass, inner voice, pad, ostinato and percussion parts. The
-road's noble contour returns as a distorted final-boss idea and resolves in the
-epilogue; the title grows the namesake three-beat slit-drum call from bell to
-horn to trumpet. Nothing is copied from another score—the kinship is in the
-early-1990s symphonic grammar: brass calls, moving low strings, harp figures,
-organ weight, timpani cadences and strongly contrasted quiet sections.
+| file | role |
+|---|---|
+| `score.py` | the notation (a line per voice, a bar at a time), the checker, the compiler |
+| `orchestra.py` | the instruments and how each is cut |
+| `themes_*.py` | the music |
+| `gen_music.py` | assembles the modules and writes `res/music.h` |
+| `sfx.py` | the eight sound effects |
+| `audition.py` | plays a theme through an emulated SPC and measures it |
 
-All eight channels are deliberately occupied in the dense cues. Viola
-spiccato supplies the hostile eighth-note engine, trumpet carries exposed
-heroic statements, tenor trombone reinforces cadences, and organ plus two
-string lines provides a small cathedral sonority. Parts are gently panned
-rather than piled in the centre, with bass and percussion kept central for
-mono compatibility.
+A theme is sections; a section is a line per voice. The compiler rejects notes
+outside an instrument's range and bars of the wrong length, and reports bass
+that disagrees with the written chord. Pattern data costs two bytes per *row*
+(empty or not) and about four per note, so slow music is written on an
+eighth-note grid, sections that repeat are compiled once, and the byte cost of
+every theme is printed.
 
-The mix is deliberately quiet. Module gain is 100/128 and bright source
-samples are band-limited before BRR conversion, leaving DAC headroom for
-effects even when all eight voices speak. Motifs contain written breaths rather
-than sustaining every source loop indefinitely. A 48ms low-passed echo at low
-level is sent only from upper and inner parts; percussion and bass stay dry.
+**The score is one work, not a playlist.** Three ideas recur. *The call* is
+three equal notes and a leap upward — the kentongan, TUNG. TUNG. TUNG. — and it
+opens the road tune. *The road* is the pilgrim's tune, bright and bugle-like:
+walked in the field, bent into E minor for the fortress, and sung in full, in a
+major key, in the ending. *The lullaby* is the Sleep's tune, three sighs each
+falling a third: warm in the village, hollowed out in the Hush, and the thing
+Il Silenzio pleads with. That boss now has two themes, one per shape: the
+plea, and the same tune with its patience gone (`BGM_FINAL2`, started by
+`battle.c` at the moment the second shape stands up).
 
-The title and the last region also get the **kentongan**: the slit drum,
-high and low alternating. Tung. Tung. Tung. It is the name of the game and for
-a long time it was the one instrument in the bank that never played.
+### What the SPC700 driver does and does not do
 
-Thirteen themes live in one module as thirteen ranges of one order list, not
-thirteen modules: `spcLoad` is a multi-frame transfer that clears SPC memory —
-and with it every loaded effect — so switching theme by loading a module would
-drop the sound effects and stall the frame an encounter starts on. Loaded once
-at boot, a theme change is a single `spcPlay`. The cost is the 64-pattern
-ceiling, so the complete score is held to 42 patterns. The converted music uses
-39,883 bytes of APU RAM including its 6KB echo buffer; with the effects module
-resident, smconv reports 6,122 bytes still free.
+Everything here was read from `sm_spc_wla.asm` or measured, and each one cost
+something to learn.
 
-Each range ends with an IT `Bxx` position jump back to its first order, so the
-SPC loops it without briefly sounding the first row of the following theme.
-The 65816-side range check remains as a defensive fallback.
+- **It ignores the DSP's ADSR entirely.** Every voice runs on direct GAIN and
+  the driver does its own envelope, a tick at a time. Voice volume is *only*
+  pan; loudness is `sample × instrument × channel × envelope × fade`, 7 bits at
+  the end.
+- **A note-off needs an envelope.** `Channel_ProcessEnvelope` tests the key the
+  wrong way round for an instrument *without* an envelope, so its fadeout
+  starts the instant the note is struck and the note dies in a few ticks. With
+  a volume envelope the driver holds at the sustain node while the key is down
+  and starts the fade only after key-off. Every sustained instrument therefore
+  carries a two-node envelope with a sustain node, and a fadeout (the release:
+  `1020 / fadeout` ticks). The old score never used note-off at all, only a
+  hard `NOTE_CUT`, and every phrase ended in a chop.
+- **Tempo is clamped to 80–200.** The SPC's tick timer cannot run slower than
+  about 32 ms, and the driver clamps an absolute tempo to that range. Slow
+  music gets its slowness from more ticks per *row* (speed), at a tempo near
+  120, which also makes a tick about 21 ms in every theme so an instrument's
+  release means the same thing in all of them. `score.Theme` chooses the speed.
+- **Sound effects steal voices 7 and 8**, and a sustained note on a stolen
+  voice is gone for good. Nothing essential is ever written there; they carry
+  ornament.
+- **`spcPlay` resets the module's state** (echo enables, pans, volumes, the
+  echo buffer), so per-voice echo switches cannot leak from one theme into the
+  next. They *do* persist across a loop point inside a theme.
+- **Position is an order number**, not a pattern number, so themes share
+  patterns across their order lists and `music.h` carries order ranges.
+- Vibrato, volume slides, pan, echo switches and tempo work. Tremolo,
+  panbrello, tremor and fine vibrato do not.
 
-`python3 gen_music.py --preview out.wav` renders every theme with a small
-software mixer, for auditioning without a SNES. To check the console rather
-than the composer, `capture.py` can record what the SPC700 actually produced
-(`core.record()` / `core.audio_rms()`) — comparing a twelve-bin pitch-class
-profile of the emulator's output against the same theme from the software
-mixer is how the sampled instruments are verified end to end after a score
-revision.
+### Not chopping the music
 
-One trap worth naming: with real samples the soundbank passes 32KB, at which
-point smconv stops emitting `SOUNDBANK__` and starts emitting `SOUNDBANK__0`
-and `SOUNDBANK__1` instead. The link then fails with `Unresolved reference to
-"SOUNDBANK__"`, which says nothing whatsoever about instrument samples.
-`checkbank.py` catches it and says so.
+Two faults shipped in the first version of the new compiler, and the second
+survived for hours because no loudness figure shows it.
+
+Every sustained note was ended one *row* early. At a slow grid a row is ~17
+ticks, about 350 ms, and the release is ~9 ticks, so every voice fell silent for
+roughly 180 ms at every bar line. The rule now: a note ends where it ends; a
+following note simply replaces it (legato); the release starts only where a
+rest begins; and a note left ringing at the end of a pattern is released on the
+first row of the next one unless that pattern starts a note there.
+`audition.py` counts these holes (a dip to under a twelfth of the median level
+inside sustained music) and fails the theme on any; it reads 0 on the score and
+11 on the compiler before the fix.
+
+Every note in a part also used to sit at exactly one volume for a whole section.
+The compiler now leans on the downbeat (+3), lets off-beat subdivisions fall
+away (−2) and gives long notes a step more, for the voices that carry a line.
+
+### The mix
+
+The echo is one set of parameters for the whole module — 48 ms, low-passed,
+with the bass and the drums kept dry — and the sends are chosen per voice:
+`EON` covers the tune, the harmony and the ornaments. The soundtrack sits at
+about −18 LUFS with peaks around −5 dB and no clipped frame; the previous score
+sat about −18 as well, but with an ear-weighted 2–6 kHz share of −7.7 dB where
+this one sits near −13 dB.
+
+The sound effects are soft, rounded sounds now (a tick, a chime, a thud, a
+shimmer) stored at 8 kHz — a slit drum for the SAHUR! effect, the real
+recording — played at DSP pitch 2, and quiet enough to sit in the music: they
+were full-scale blips played at 13–15 of 15 on a mix peaking far lower.
+
+### Budget
+
+The SPC has 64 KB and smconv leaves 57,957 bytes of it for modules. The score
+spends 57,460 of 57,957 bytes: 19.9KB of instruments, 26.0KB of pattern data, 6KB of
+echo buffer and 5.4KB of effects, with 0.5KB free.
+
+Every theme, played for a full loop through the emulated SPC700 (`python3 audition.py`), reads `ok`:
+
+| theme | peak | LUFS | presence | theme | peak | LUFS | presence |
+|---|---|---|---|---|---|---|---|
+| TOWN | −8.0 dB | −19.2 | −15.1 dB | BATTLE | −4.1 dB | −17.6 | −14.9 dB |
+| FIELD | −5.7 dB | −18.9 | −11.5 dB | BOSS | −4.0 dB | −16.6 | −12.4 dB |
+| FOREST | −8.2 dB | −20.3 | −19.8 dB | FINAL | −6.9 dB | −18.5 | −15.3 dB |
+| SHORE | −5.7 dB | −19.1 | −15.1 dB | FINAL2 | −4.7 dB | −17.4 | −16.6 dB |
+| SALT | −10.4 dB | −21.2 | −13.8 dB | FANFARE | −4.1 dB | −15.4 | −15.0 dB |
+| FORTRESS | −4.4 dB | −16.2 | −13.1 dB | TITLE | −3.0 dB | −17.2 | −14.1 dB |
+| HUSH | −11.2 dB | −22.3 | −17.0 dB | ENDING | −5.8 dB | −19.3 | −15.0 dB |
+
+No clipped frame and no dropout in any of them. "Presence" is the A-weighted
+share of energy in 2-6 kHz; the score it replaced measured -7.8 dB (town) and
+-7.7 dB (battle) on the same instrument.
 
 ---
 
@@ -424,7 +528,13 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`, `title`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
-| `gen_music.py` | thirteen themes, eight effects, two `.it` modules |
+| `gen_music.py` | assembles the score and the effects into two `.it` modules and `res/music.h`; prints the ARAM budget |
+| `score.py` | the score language: notation, checker, compiler |
+| `orchestra.py` | every instrument, how it is cut, its range and its level |
+| `themes.py` `themes_*.py` | the music: fourteen themes |
+| `sfx.py` | the eight sound effects |
+| `audition.py` | plays a theme through an emulated SPC700 and measures loudness, clipping, dropouts and shrillness |
+| `audition/` | the audition ROM (driver and soundbank, no game) |
 | `snesgfx.py` | 4bpp/CGRAM/tilemap encoders and the drawing surface |
 | `itwriter.py` | a minimal Impulse Tracker writer |
 | `preview.py` | renders the converted binaries back to PNG — `world`, `battle`, `sprites`, `anim`, `portraits`, `title` |
@@ -437,9 +547,9 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `checkfaces.py` | fails the build on a speaker with no portrait |
 | `checkbank.py` | fails the build when audio.c and smconv disagree on the soundbank symbol |
 | `checkrom.py` | fails the build if the 4MB LoROM/battery-SRAM header or checksum changes |
-| `checktune.py` | fails the asset build on an instrument more than 18 cents out |
+| `checktune.py` | fails the asset build on an instrument more than 18 cents out, or a loop seam that steps |
 | `gen_title.py` | cuts the baked title into 512 characters and eight palette steps; the painted title is its fallback |
-| `sfsample.py` | conditions real recordings into looped SNES samples |
+| `sfsample.py` | conditions real recordings into looped SNES samples: proper low-pass, contiguous loops, whole periods |
 | `fetch_samples.py` | downloads the CC0 source recordings into `samples/` |
 
 `preview.py` shows what the *generators* produced. `capture.py` shows what the
@@ -470,7 +580,7 @@ has to outlive `retro_load_game`.
 ## Regenerating the assets
 
 The generated graphics and tracker modules needed for a normal build are kept
-in the repository, so a contributor can build without downloading the 25MB of
+in the repository, so a contributor can build without downloading the 58MB of
 source recordings. To rebuild them from their Python sources:
 
 ```sh

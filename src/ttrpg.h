@@ -399,6 +399,7 @@ extern s16 scrollX, scrollY;
 #define BGM_FANFARE  10
 #define BGM_TITLE    11
 #define BGM_ENDING   12
+#define BGM_FINAL2   13     /* IL SILENZIO ASSOLUTO: the second shape */
 
 #define SFX_CURSOR  0
 #define SFX_CONFIRM 1

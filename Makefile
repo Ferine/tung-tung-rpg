@@ -104,7 +104,7 @@ PSFILES := $(CFILES:.c=.ps)
 $(PSFILES): src/ttrpg.h src/gfxmap.h src/sprmap.h src/worldmap.h \
             src/bgmap.h src/hdmamap.h
 
-# res/music.h carries the order ranges of the thirteen themes and is written by
+# res/music.h carries the order ranges of the fourteen themes and is written by
 # gen_music.py, not by make -- they have to come from the module that defines
 # them. Same stale-.ps trap as the others, hence the dependency; and since make
 # cannot build it, say so rather than failing with "no rule to make target".

@@ -1159,6 +1159,9 @@ static u8 checkEnd(void) {
             bossPhase = 0;
             beginMessage("The shape does not fall. It straightens, and stops "
                          "being polite about any of this.");
+            /* The plea had its own tune; this has the same one, with the
+             * patience gone. */
+            audioMusic(BGM_FINAL2);
             ppuFlash(24);
             ppuShake(24);
             bstate = BS_EXEC;

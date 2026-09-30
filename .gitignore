@@ -44,6 +44,8 @@ res/soundbank.h
 
 # Pinned CC0 source recordings are fetched on demand
 samples/*.wav
+samples/cache/
+build/
 
 # Generated previews and development capture sequences. The stills and clips
 # the README embeds are committed, and live in media/ so this stays a scratch

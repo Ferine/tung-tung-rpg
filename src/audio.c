@@ -1,15 +1,18 @@
 /*
  * TUNG TUNG SAHUR -- music and sound effects.
  *
- * gen_music.py writes two Impulse Tracker modules and smconv packs them into
- * res/soundbank, which the SPC700 driver plays out of its own 64KB. The 65816
- * side only ever posts an index and a command.
+ * gen_music.py writes two Impulse Tracker modules (the score is in themes_*.py,
+ * the instruments in orchestra.py) and smconv packs them into res/soundbank,
+ * which the SPC700 driver plays out of its own 64KB. The 65816 side only ever
+ * posts an index and a command.
  *
- * The thirteen themes are thirteen ranges of one module's order list, not
- * thirteen modules. spcLoad is a multi-frame transfer that also clears SPC memory --
- * and with it every effect loaded into it -- so switching theme by loading a
- * module would drop the sound effects and stall the frame an encounter starts
- * on. Loaded once at boot, a theme change is a single spcPlay().
+ * The fourteen themes are fourteen ranges of one module's order list, not
+ * fourteen modules. spcLoad is a multi-frame transfer that also clears SPC
+ * memory -- and with it every effect loaded into it -- so switching theme by
+ * loading a module would drop the sound effects and stall the frame an
+ * encounter starts on. Loaded once at boot, a theme change is a single
+ * spcPlay(); and since the SPC reports the *order* it is on, and themes share
+ * patterns across their order lists, music.h carries order ranges.
  *
  * Nothing here blocks except the boot sequence: spcPlay posts a message and
  * spcGetMusicPosition is a plain read of REG_APUIO3 with no handshake.
@@ -21,7 +24,7 @@
 #include "res/soundbank.h"
 #include "res/music.h"
 
-/* Two symbols, not one: with real instrument samples the bank is 38KB, and
+/* Two symbols, not one: with real instrument samples the bank is over 32KB, and
  * smconv splits anything over 32KB across consecutive ROM banks and renames
  * the label accordingly. checkbank.py fails the build if that ever flips back
  * to the single-bank form, because the failure is a link error a long way from
@@ -108,6 +111,10 @@ void audioMusic(u8 which) {
         first = MUS_FINAL_FIRST;
         last = MUS_FINAL_LAST;
         break;
+    case BGM_FINAL2:
+        first = MUS_FINAL2_FIRST;
+        last = MUS_FINAL2_LAST;
+        break;
     case BGM_FANFARE:
         first = MUS_FANFARE_FIRST;
         last = MUS_FANFARE_LAST;
@@ -144,24 +151,31 @@ void audioStop(void) {
 }
 
 /* Per-effect level, high nibble of the volpan byte; the low nibble is pan and
- * 8 is centre. A menu blip at the same volume as a bomb makes the menu
- * exhausting and the bomb unremarkable. */
+ * 8 is centre. The effects are soft, rounded sounds now (sfx.py), and these
+ * are set to sit in the music instead of over it: they used to be full-scale
+ * blips played at 13-15 of 15 on top of a mix peaking well below that, which
+ * is most of why the game felt loud. A menu tick is quieter than a hit, and
+ * the hit is quieter than the drum, which is the title of the game. */
 static const u8 sfxVol[8] = {
-    5,      /* CURSOR  */
-    7,      /* CONFIRM */
-    13,     /* HIT     */
-    12,     /* MAGIC   */
-    9,      /* HEAL    */
-    15,     /* DRUM    -- it is the title of the game */
-    8,      /* ERROR   */
-    14      /* DEATH   */
+    4,      /* CURSOR  */
+    6,      /* CONFIRM */
+    10,     /* HIT     */
+    9,      /* MAGIC   */
+    8,      /* HEAL    */
+    11,     /* DRUM    -- it is the title of the game */
+    7,      /* ERROR   */
+    11      /* DEATH   */
 };
+
+/* The effects are stored at 8kHz, which is DSP pitch 2 (8 is 32kHz, and each
+ * step is 4kHz). Storing them at half the rate they used to be is what halves
+ * their share of the SPC's 64KB. */
+#define SFX_PITCH 2
 
 void audioSfx(u8 which) {
     if (!audioReady || which > 7)
         return;
-    /* Pitch 4 is 1:1 for a sample carrying its own rate. */
-    spcEffect(4, which, (u8)(sfxVol[which] * 16 + 8));
+    spcEffect(SFX_PITCH, which, (u8)(sfxVol[which] * 16 + 8));
 }
 
 /* Once a frame, from the V-blank window. Each generated theme ends in a Bxx

@@ -1,36 +1,50 @@
 #!/usr/bin/env python3
-"""Condition real instrument recordings into SNES-sized looped samples.
+"""Condition real instrument recordings into SNES-sized samples.
 
 The sources are CC0 orchestral libraries -- Versilian's VSCO-2-CE and VCSL,
 both released under CC0-1.0, which is the only licence that actually permits
 cutting a recording up and shipping the pieces inside a ROM. See SAMPLES.md.
 
 This is how the 16-bit RPG soundtracks were made in the first place. FF6 and
-Chrono Trigger are not synthesised: they are real orchestral recordings cut
-down to a few hundred bytes each, looped, and played back through the SPC700's
-Gaussian interpolation. Doing the same thing to the same kind of material is
-what makes the result sound like 1994 rather than like a chiptune.
+Chrono Trigger are not synthesised: they are real recordings cut down to a few
+hundred bytes each, looped, and played back through the SPC700's Gaussian
+interpolation. Doing the same thing to the same kind of material is what makes
+the result sound like 1994 rather than like a chiptune.
 
 What has to happen to a 10-second 44.1kHz stereo WAV before it is a SNES
-instrument:
+instrument, and what went wrong the first time each step was done carelessly:
 
   * mono, because the DSP's stereo is a per-voice pan of a mono sample
-  * down to 8-16kHz, because 64KB of ARAM holds the entire soundtrack
-  * cut to an attack plus a loop of a few hundred samples
-  * loop points on 16-sample boundaries, because BRR is a 16-sample block
-    format and the loop can only re-enter at a block start
-  * a crossfade across the loop seam, because a loop cut at an arbitrary point
-    of a real recording clicks once per cycle otherwise
+  * a real low-pass before decimation. A box average is not one: everything
+    above the new Nyquist folds back into the band, and on a bowed string that
+    is a fixed shimmer of inharmonic partials under every note. It is the
+    difference between "sampled violin" and "broken radio".
+  * an attack followed by a loop that is *contiguous* with it. The loop used to
+    be cut a whole loop-length past the attack, so every note ticked once, about
+    fifty milliseconds in, where the two did not meet.
+  * a loop that is an exact whole number of the instrument's own periods, on
+    16-sample BRR block boundaries, crossfaded across the seam
+  * a loop seam that agrees with what precedes the loop. smconv's BRR encoder
+    predicts each block from the samples before it, and at the wrap those are
+    the *end* of the loop, not the attack. If the two differ the first loop
+    block is decoded wrong on every pass -- a click at the loop rate.
 
-`C5Speed` then carries the pitch: the DSP is told how fast to read the sample
-for note C5, so a recording of a C3 and a recording of a C6 both play in tune
-from the same tracker note.
+`C5Speed` then carries the pitch: it is the rate at which the DSP reads the
+sample for tracker note 60, so a recording of a C3 and a recording of a C6
+both play in tune from the same note number.
 """
 import math
 import os
 import struct
 
+try:
+    import numpy as np
+except ImportError:                                     # pragma: no cover
+    raise SystemExit("the audio pipeline needs numpy: pip install numpy")
+
 import itwriter as it
+
+BLOCK = 16          # BRR block, in samples
 
 # ---- notes --------------------------------------------------------------
 
@@ -54,14 +68,9 @@ def note_hz(name):
 # ---- wav ----------------------------------------------------------------
 
 def read_wav(path, max_seconds=None):
-    """Mono float in [-1,1], plus the rate. Handles the 16- and 24-bit PCM the
-    Versilian libraries ship; anything else is a hard error rather than a
-    quietly wrong sample.
-
-    `max_seconds` stops early. These are ten-second recordings and the SNES
-    wants a tenth of a second of each, so decoding all of them in full costs
-    about thirty seconds of every asset build for material that is thrown
-    away."""
+    """Mono float64 in [-1,1], plus the rate. Handles the 16/24/32-bit PCM and
+    32-bit float the Versilian libraries ship; anything else is a hard error
+    rather than a quietly wrong sample."""
     raw = open(path, 'rb').read()
     if raw[:4] != b'RIFF' or raw[8:12] != b'WAVE':
         raise SystemExit("%s: not a RIFF/WAVE file" % path)
@@ -75,6 +84,8 @@ def read_wav(path, max_seconds=None):
         body = raw[i + 8:i + 8 + size]
         if cid == b'fmt ':
             fmt = struct.unpack_from('<HHIIHH', body, 0)
+            if fmt[0] == 0xFFFE and len(body) >= 26:      # WAVE_FORMAT_EXTENSIBLE
+                fmt = (struct.unpack_from('<H', body, 24)[0],) + fmt[1:]
         elif cid == b'data':
             data = body
         i += 8 + size + (size & 1)
@@ -82,324 +93,421 @@ def read_wav(path, max_seconds=None):
     if fmt is None or data is None:
         raise SystemExit("%s: missing fmt or data chunk" % path)
     tag, chans, rate, _bps, _align, bits = fmt
-    if tag != 1:
-        raise SystemExit("%s: compressed WAV (tag %d), want PCM" % (path, tag))
-
     width = bits // 8
     frame = width * chans
     n = len(data) // frame
     if max_seconds:
         n = min(n, int(rate * max_seconds))
-    out = [0.0] * n
+    data = data[:n * frame]
 
-    if bits == 16:
-        scale = 1.0 / 32768.0
-        for f in range(n):
-            base = f * frame
-            acc = 0
-            for c in range(chans):
-                acc += struct.unpack_from('<h', data, base + c * 2)[0]
-            out[f] = acc * scale / chans
-    elif bits == 24:
-        scale = 1.0 / 8388608.0
-        for f in range(n):
-            base = f * frame
-            acc = 0
-            for c in range(chans):
-                o = base + c * 3
-                v = data[o] | (data[o + 1] << 8) | (data[o + 2] << 16)
-                if v & 0x800000:
-                    v -= 0x1000000
-                acc += v
-            out[f] = acc * scale / chans
+    if tag == 1 and bits == 16:
+        a = np.frombuffer(data, dtype='<i2').astype(np.float64) / 32768.0
+    elif tag == 1 and bits == 24:
+        b = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
+        v = b[:, 0] | (b[:, 1] << 8) | (b[:, 2] << 16)
+        v = np.where(v & 0x800000, v - 0x1000000, v)
+        a = v.astype(np.float64) / 8388608.0
+    elif tag == 1 and bits == 32:
+        a = np.frombuffer(data, dtype='<i4').astype(np.float64) / 2147483648.0
+    elif tag == 3 and bits == 32:
+        a = np.frombuffer(data, dtype='<f4').astype(np.float64)
     else:
-        raise SystemExit("%s: %d-bit PCM not handled" % (path, bits))
-
-    return out, rate
+        raise SystemExit("%s: format tag %d, %d-bit not handled"
+                         % (path, tag, bits))
+    return a.reshape(-1, chans).mean(axis=1), rate
 
 
 # ---- dsp ----------------------------------------------------------------
 
-def resample(buf, src, dst):
-    """Linear interpolation with a box pre-filter when decimating.
+def _kaiser_sinc(u, fc, zeros, beta=9.0):
+    """Windowed-sinc low-pass kernel, cutoff `fc` in cycles/sample, evaluated
+    at offsets `u` (in samples) with `zeros` zero crossings either side."""
+    half = zeros / (2.0 * fc)
+    x = np.clip(u / half, -1.0, 1.0)
+    win = np.i0(beta * np.sqrt(1.0 - x * x)) / np.i0(beta)
+    return 2.0 * fc * np.sinc(2.0 * fc * u) * win
 
-    Going from 44.1kHz to 10kHz without the pre-filter folds everything above
-    5kHz back down into the audible band, which on a bowed string is a lot of
-    energy and sounds like a broken radio."""
-    if src == dst:
-        return list(buf)
-    ratio = src / float(dst)
-    n = int(len(buf) / ratio)
-    out = [0.0] * n
 
-    if ratio > 1.0:
-        w = int(ratio)          # average this many input samples per output
-        for i in range(n):
-            p = i * ratio
-            j = int(p)
-            acc = 0.0
-            cnt = 0
-            for k in range(j, min(j + w, len(buf))):
-                acc += buf[k]
-                cnt += 1
-            out[i] = acc / cnt if cnt else 0.0
-    else:
-        for i in range(n):
-            p = i * ratio
-            j = int(p)
-            f = p - j
-            a = buf[j] if j < len(buf) else 0.0
-            b = buf[j + 1] if j + 1 < len(buf) else a
-            out[i] = a + (b - a) * f
+def sample_at(x, sr, positions, fc_hz, zeros=12):
+    """x evaluated at fractional `positions` (in samples of x), low-passed at
+    `fc_hz` on the way. This is the one resampler everything uses: the same
+    filter whether the ratio is 1:4.9 or 1:1.003, and correctly band-limited
+    in both cases."""
+    fc = min(fc_hz / float(sr), 0.5)
+    half = int(math.ceil(zeros / (2.0 * fc)))
+    positions = np.asarray(positions, dtype=np.float64)
+    base = np.floor(positions).astype(np.int64) - half + 1
+    taps = np.arange(2 * half)
+    out = np.zeros(len(positions))
+    pad = np.concatenate([np.zeros(half + 2), x, np.zeros(half + 2)])
+    chunk = max(1, 400000 // (2 * half))
+    for a in range(0, len(positions), chunk):
+        b = min(a + chunk, len(positions))
+        idx = base[a:b, None] + taps[None, :]
+        u = idx - positions[a:b, None]
+        h = _kaiser_sinc(u, fc, zeros)
+        out[a:b] = (pad[idx + half + 2] * h).sum(axis=1)
     return out
 
 
-def normalise(buf, peak=0.92):
-    m = max((abs(v) for v in buf), default=0.0)
+def resample(buf, src, dst, cutoff=None):
+    """Whole-buffer rate change with a proper anti-alias filter."""
+    if src == dst and cutoff is None:
+        return np.asarray(buf, dtype=np.float64).copy()
+    ratio = src / float(dst)
+    n = int(len(buf) / ratio)
+    fc = min(0.5 * dst * 0.92, cutoff or 1e9, 0.5 * src)
+    return sample_at(np.asarray(buf, dtype=np.float64), src,
+                     np.arange(n) * ratio, fc)
+
+
+def normalise(buf, peak=0.95):
+    m = float(np.abs(buf).max()) if len(buf) else 0.0
     if m < 1e-9:
-        return list(buf)
-    k = peak / m
-    return [v * k for v in buf]
+        return np.asarray(buf).copy()
+    return buf * (peak / m)
 
 
 def onset(buf, thresh=0.02):
     """First sample above the threshold, backed off a little so the attack
     transient is not clipped off the front."""
-    for i, v in enumerate(buf):
-        if abs(v) > thresh:
-            return max(0, i - 8)
-    return 0
+    hit = np.nonzero(np.abs(buf) > thresh)[0]
+    return max(0, int(hit[0]) - 8) if len(hit) else 0
 
 
-def detect_f0(buf, rate, lo=40.0, hi=1400.0):
-    """Fundamental, by YIN's cumulative mean normalised difference.
+def shape(buf, sr, hp=25.0, tilt_db=0.0, pivot=1000.0):
+    """Zero-phase spectral shaping of a source excerpt: a high-pass to keep DC
+    and rumble out of 4-bit samples, and an optional gentle tilt (dB per
+    octave above `pivot`) for instruments whose recordings are brighter than
+    they are pleasant once every note is pitched around the keyboard."""
+    n = len(buf)
+    nfft = 1 << int(math.ceil(math.log2(n + 8)))
+    spec = np.fft.rfft(buf, nfft)
+    f = np.fft.rfftfreq(nfft, 1.0 / sr)
+    gain = np.ones_like(f)
+    if hp:
+        gain *= 1.0 / np.sqrt(1.0 + (hp / np.maximum(f, 1e-3)) ** 4)
+    if tilt_db:
+        oct_ = np.log2(np.maximum(f, pivot) / pivot)
+        gain *= 10.0 ** (tilt_db * oct_ / 20.0)
+    return np.fft.irfft(spec * gain, nfft)[:n]
 
-    Plain autocorrelation does not work here and fails in a way that looks
-    like success. Normalised correlation is ~1 at small lags for any smooth
+
+def detect_f0(buf, rate, lo=40.0, hi=1500.0, start=None, seconds=0.30):
+    """Fundamental, by YIN's cumulative mean normalised difference, refined by
+    measuring the period over several repeats.
+
+    Plain autocorrelation does not work here and fails in a way that looks like
+    success: normalised correlation is ~1 at small lags for any smooth
     waveform, so "the lowest lag that correlates well" is always a few samples
-    -- every sustained instrument comes back an octave or more sharp, and
-    consistently enough that it reads as the sample library being mislabelled
-    rather than the detector being wrong.
+    and every sustained instrument comes back an octave or more sharp.
 
-    YIN divides the difference function by its own running mean, which pushes
-    d'(tau) towards 1 at small lags and leaves a clear dip at the true period.
-
-    Only a check: the note comes from the filename. But an instrument a
+    Only a check on the label, and the loop-length arithmetic: an instrument a
     semitone out is not something anybody notices until the whole soundtrack
-    is built around it.
-    """
-    work = resample(buf, rate, 11025) if rate > 11025 else list(buf)
-    wr = 11025 if rate > 11025 else rate
-
-    n = len(work)
-    if n < 4096:
+    is built around it."""
+    n = len(buf)
+    win = int(rate * seconds)
+    if n < win + int(rate / lo) + 8:
         return None
-    start = min(n // 3, n - 3072)
-    w = work[start:start + 3072]
-    mean = sum(w) / len(w)
-    w = [v - mean for v in w]
+    s0 = int(n * 0.3) if start is None else start
+    s0 = max(0, min(s0, n - win - 1))
+    w = buf[s0:s0 + win + int(rate / lo) + 4]
+    w = w - w.mean()
 
-    tau_max = min(len(w) // 2, int(wr / lo))
-    tau_min = max(2, int(wr / hi))
+    tau_max = min(len(w) // 2, int(rate / lo))
+    W = len(w) - tau_max
+    if W < 256:
+        return None
+    a = w[:W]
+    cs = np.concatenate([[0.0], np.cumsum(w * w)])
+    ea = cs[W]
+    nfft = 1 << int(math.ceil(math.log2(len(w) + W)))
+    cross = np.fft.irfft(np.fft.rfft(w, nfft) * np.conj(np.fft.rfft(a, nfft)),
+                         nfft)[:tau_max + 1]
+    taus = np.arange(tau_max + 1)
+    eb = cs[taus + W] - cs[taus]
+    d = ea + eb - 2.0 * cross
+    d[0] = 0.0
+    run = np.cumsum(d)
+    dn = np.ones_like(d)
+    dn[1:] = d[1:] * taus[1:] / np.maximum(run[1:], 1e-12)
 
-    d = [0.0] * (tau_max + 1)
-    half = len(w) // 2
-    for tau in range(1, tau_max + 1):
-        acc = 0.0
-        for i in range(half):
-            diff = w[i] - w[i + tau]
-            acc += diff * diff
-        d[tau] = acc
-
-    # cumulative mean normalisation
-    dn = [1.0] * (tau_max + 1)
-    run = 0.0
-    for tau in range(1, tau_max + 1):
-        run += d[tau]
-        dn[tau] = d[tau] * tau / run if run > 1e-12 else 1.0
-
+    tau_min = max(2, int(rate / hi))
     best = None
-    for tau in range(tau_min, tau_max):
-        if dn[tau] < 0.15 and dn[tau] <= dn[tau + 1] and dn[tau] <= dn[tau - 1]:
-            best = tau
+    for t in range(tau_min, tau_max - 1):
+        if dn[t] < 0.15 and dn[t] <= dn[t + 1] and dn[t] <= dn[t - 1]:
+            best = t
             break
     if best is None:
-        cand = range(tau_min, tau_max + 1)
-        best = min(cand, key=lambda t: dn[t])
+        best = int(tau_min + np.argmin(dn[tau_min:tau_max]))
         if dn[best] > 0.6:
             return None
-
-    # parabolic interpolation around the dip, for sub-sample accuracy
     if 1 < best < tau_max:
-        a, b, c = dn[best - 1], dn[best], dn[best + 1]
-        denom = 2 * (2 * b - a - c)
-        if abs(denom) > 1e-12:
-            best = best + (a - c) / denom
-    coarse = wr / best
-
-    # The coarse pass runs at 11kHz, where a 590Hz tone sits at lag 18 and one
-    # lag step is 26Hz -- 75 cents. That is not good enough to tune an
-    # instrument with: the loop is built to hold a whole number of periods, so
-    # an f0 that is 40 cents out puts a fractional period in the loop and the
-    # sample plays 40 cents sharp for the rest of the game. So refine at the
-    # original rate, where the same tone sits at lag 75 and the steps are four
-    # times finer, searching only near the answer we already have.
-    return _refine(buf, rate, coarse)
+        a_, b_, c_ = dn[best - 1], dn[best], dn[best + 1]
+        den = 2 * (2 * b_ - a_ - c_)
+        if abs(den) > 1e-12:
+            best = best + (a_ - c_) / den
+    return _refine(buf, rate, rate / best, s0)
 
 
-def _refine(buf, rate, coarse, span=0.25):
+def _refine(buf, rate, coarse, start, repeats=6):
+    """Sharpen a period estimate by matching the waveform against itself
+    `repeats` periods later: the error in the estimate is divided by the
+    number of periods spanned, so a 0.05-sample lag error becomes 0.01."""
     tau0 = rate / coarse
-    lo = max(2, int(tau0 * (1 - span)))
-    hi = int(tau0 * (1 + span)) + 2
-    n = min(len(buf), int(rate * 0.12))
-    start = max(0, min(len(buf) - n - hi, len(buf) // 3))
-    w = buf[start:start + n]
-    if len(w) < hi * 4:
+    span = int(rate * 0.25)
+    m = max(1, min(repeats, int((len(buf) - start - span) / tau0) - 1))
+    n = span - int(m * tau0 * 1.02) - 2
+    if n < 64:
         return coarse
-    mean = sum(w) / len(w)
-    w = [v - mean for v in w]
-
-    half = len(w) - hi
-    d = {}
-    for tau in range(lo, hi):
-        acc = 0.0
-        for i in range(0, half, 2):        # every other sample: same minimum
-            diff = w[i] - w[i + tau]
-            acc += diff * diff
-        d[tau] = acc
-    best = min(d, key=lambda t: d[t])
-    if lo < best < hi - 1:
-        a, b, c = d[best - 1], d[best], d[best + 1]
-        denom = 2 * (2 * b - a - c)
-        if abs(denom) > 1e-12:
-            best = best + (a - c) / denom
-    return rate / best
+    ref = buf[start:start + n]
+    best_t, best_d = None, None
+    for T in np.arange(m * tau0 * 0.985, m * tau0 * 1.015, 0.02):
+        i0 = int(T)
+        fr = T - i0
+        seg = buf[start + i0:start + i0 + n + 1]
+        if len(seg) < n + 1:
+            continue
+        val = seg[:-1] * (1 - fr) + seg[1:] * fr
+        dd = float(((ref - val) ** 2).sum())
+        if best_d is None or dd < best_d:
+            best_d, best_t = dd, T
+    return rate / (best_t / m) if best_t else coarse
 
 
 # ---- sample construction ------------------------------------------------
-
-BLOCK = 16          # BRR block, in samples
-
 
 def _align(n):
     return (n // BLOCK) * BLOCK
 
 
-def resample_frac(buf, at, count, span):
-    """`count` output samples covering `span` input samples starting at `at`,
-    where span need not be a whole number. Linear, which at these rates is
-    indistinguishable from anything cleverer."""
-    out = [0.0] * count
-    ratio = span / float(count)
-    for i in range(count):
-        p = at + i * ratio
-        j = int(p)
-        f = p - j
-        a = buf[j] if j < len(buf) else 0.0
-        b = buf[j + 1] if j + 1 < len(buf) else a
-        out[i] = a + (b - a) * f
-    return out
+def _smooth(n):
+    """Smoothstep 0->1 over n samples, no corner at either end."""
+    w = (np.arange(n) + 1.0) / n
+    return w * w * (3 - 2 * w)
 
 
-def looped(path, note, rate=10000, attack_ms=60, loop_ms=90, fade=0.35,
-           peak=0.92, check=True):
-    """A sustained instrument: a short attack followed by a looped body whose
-    length is an exact whole number of the instrument's own periods.
+def looped(path, label=None, p=32, attack_ms=60, loop_ms=100, max_loop=640,
+           steady_ms=None, bw_harm=None, tilt_db=0.0, peak=0.95,
+           crest=1.6, check=True, max_seconds=6.0):
+    """A sustained instrument: a short attack followed by a loop that is an
+    exact whole number of the instrument's own periods.
 
-    That constraint is the whole job. A loop can only re-enter at a BRR block
-    boundary, so its length has to be a multiple of 16 samples -- and 16 has no
-    reason to divide the period of a violin. Cut the loop at a round number of
-    samples instead and it is 11.5 periods long, so every time it wraps, the
-    waveform restarts half a cycle out of phase. A crossfade hides the click
-    but not the pitch: what you hear is the loop frequency itself, a 14Hz
-    warble under a sustained note, and it is worse the lower the instrument.
-    Which is exactly what the contrabass and the harp did.
+    `p` is samples per cycle in the stored sample, and it is the one number
+    that decides how the instrument sounds: p/2 harmonics survive, so p=32 is
+    sixteen partials -- a mellow horn -- and p=64 is thirty-two. It also fixes
+    the storage cost: bytes scale with p * f0, so a bass at p=32 is nearly free
+    and a piccolo at p=32 is not.
 
-    So: pick the number of periods k, round k periods to a multiple of 16 to
-    get the loop length, and then resample the source so that k periods fit
-    that length *exactly*. The rate moves by a fraction of a percent and the
-    loop becomes perfectly periodic.
+    Why a loop has to hold whole periods: a loop can only re-enter at a BRR
+    block boundary, so its length is a multiple of 16 -- and 16 has no reason
+    to divide the period of a violin. Cut the loop at a round number of samples
+    and it is 11.5 periods long, so every wrap restarts the waveform half a
+    cycle out of phase; a crossfade hides the click but not the pitch, and
+    what you hear is the loop frequency itself, a warble under a sustained
+    note. So: pick the number of periods k, round k*p to a multiple of 16 to
+    get the loop length L, and resample the source so that k periods fit that
+    length exactly.
 
-    C5Speed then falls out as 523.25 * (loop_n / k) -- samples per cycle times
-    the frequency wanted at note 60, which is the same relation the synthesised
-    instruments used when a cycle was 32 samples by construction.
+    C5Speed then falls out as note_hz('C4') * (L / k): samples per cycle times
+    the frequency wanted at tracker note 60 (middle C).
     """
-    src, sr = read_wav(path, max_seconds=6.0)
+    src, sr = read_wav(path, max_seconds=max_seconds)
     src = src[onset(src):]
+    src = shape(src, sr, hp=25.0, tilt_db=tilt_db)
 
-    f0 = detect_f0(src, sr)
+    s_ms = steady_ms if steady_ms is not None else max(attack_ms + 250, 450)
+    f0 = detect_f0(src, sr, start=int(sr * s_ms / 1000.0))
+    if not f0:
+        f0 = detect_f0(src, sr)
     if not f0:
         raise SystemExit("%s: no detectable pitch, cannot build a loop"
                          % os.path.basename(path))
-    if check:
-        want = note_hz(note)
+    if check and label:
+        want = note_hz(label)
         cents = 1200 * math.log(f0 / want, 2)
         if abs(cents) > 60:
             raise SystemExit(
                 "%s: labelled %s (%.1f Hz) but measures %.1f Hz, %+d cents"
-                % (os.path.basename(path), note, want, f0, cents))
+                % (os.path.basename(path), label, want, f0, cents))
 
-    # k whole periods, as close to the requested loop length as the period
-    # allows, then rounded out to a BRR block boundary.
+    # k whole periods in a loop of L = 16m samples: p' = L/k is p, nudged.
     k = max(2, int(round(f0 * loop_ms / 1000.0)))
-    p_req = rate / f0
-    loop_n = max(BLOCK, int(round(k * p_req / BLOCK)) * BLOCK)
-    p = loop_n / float(k)                  # samples per cycle, exactly
-    real_rate = f0 * p                     # the rate that makes that true
+    while int(round(k * p / BLOCK)) * BLOCK > max_loop and k > 2:
+        k -= 1
+    L = max(BLOCK, int(round(k * p / BLOCK)) * BLOCK)
+    pp = L / float(k)                       # samples per cycle, exactly
+    real_rate = f0 * pp                     # the rate that makes that true
+    step = sr / real_rate                   # source samples per stored sample
 
-    attack = _align(int(real_rate * attack_ms / 1000.0))
-    span = sr / real_rate                  # input samples per output sample
+    H = max(2 * BLOCK, _align(int(real_rate * attack_ms / 1000.0)))
+    c = min(H - BLOCK, max(BLOCK, int(2 * pp)))     # splice window, ~2 cycles
+    m = min(L // 2, max(BLOCK, int(3 * pp)))        # loop crossfade, ~3 cycles
 
-    need = (attack + 2 * loop_n) * span
-    if need > len(src):
-        raise SystemExit("%s: %d samples, need %d"
-                         % (os.path.basename(path), len(src), int(need)))
+    # where the steady tone lives, in stored samples
+    J_nom = int(real_rate * s_ms / 1000.0)
+    span = int(pp * 3)
+    total_src = len(src) / step
+    if J_nom + L + span + 8 > total_src:
+        J_nom = int(total_src - L - span - 8)
+    if J_nom < H + 2 * m:
+        raise SystemExit("%s: %d source samples is too short for this loop"
+                         % (os.path.basename(path), len(src)))
 
-    head = resample_frac(src, 0.0, attack, attack * span)
-    # The loop is taken a full loop-length past the attack, so there is
-    # steady-state material in front of it to fade into.
-    at = (attack + loop_n) * span
-    body = resample_frac(src, at, loop_n, loop_n * span)
-    prev = resample_frac(src, at - loop_n * span, loop_n, loop_n * span)
+    lo, hi = max(H + c, m + 1, J_nom - span), J_nom + span
+    stored = sample_at(src, sr, np.arange(hi + L + 4) * step,
+                       min(0.46 * real_rate, sr * 0.45, real_rate * 0.5))
+    if bw_harm:
+        # optional further band limit, in harmonics of f0, for bright sources
+        stored = _bandlimit(stored, real_rate, bw_harm * f0)
 
-    m = max(BLOCK, int(loop_n * fade))
-    for i in range(m):
-        w = (i + 1) / float(m)
-        w = w * w * (3 - 2 * w)            # smoothstep: no corner either end
-        j = loop_n - m + i
-        body[j] = body[j] * (1 - w) + prev[loop_n - m + i] * w
+    # pick the loop start J where the source is most periodic over L, and
+    # where the splice window agrees best with the tail of the attack.
+    best_j, best_s = lo, None
+    tailH = stored[H - c:H]
+    for j in range(lo, hi):
+        a = stored[j + L - m:j + L]
+        b = stored[j - m:j]
+        d_loop = float(((a - b) ** 2).sum())
+        d_join = float(((stored[j - c:j] - tailH) ** 2).sum())
+        sc = d_loop + 0.5 * d_join
+        if best_s is None or sc < best_s:
+            best_j, best_s = j, sc
+    J = best_j
 
-    data = normalise(head + body, peak)
-    c5 = int(round(note_hz('C5') * p))
-    s = it.Sample(os.path.basename(path)[:24], data, c5,
-                  loop=True, loop_start=attack)
-    s.cycle = p
+    head = stored[:H].copy()
+    body = stored[J:J + L].copy()
+    pre_c = stored[J - c:J]
+    pre_m = stored[J - m:J]
+
+    # attack -> loop: the last c samples of the head are blended to the
+    # steady-state samples that precede the loop start, so head and loop meet
+    # without a step. The final samples are *exactly* pre_c, which is what the
+    # BRR predictor sees at the loop start on the first pass.
+    r_head = float(np.sqrt((tailH ** 2).mean())) or 1e-9
+    r_pre = float(np.sqrt((pre_c ** 2).mean())) or 1e-9
+    g = min(2.0, max(0.5, r_pre / r_head))
+    q = max(BLOCK, H // 4)
+    head[H - q:] *= 1.0 + (g - 1.0) * _smooth(q)
+    w = _smooth(c)
+    head[H - c:] = head[H - c:] * (1 - w) + pre_c * w
+    head[H - 4:] = pre_c[-4:]
+
+    # loop -> loop: the same for the wrap, so the last samples of the body are
+    # what preceded its first sample, i.e. the decoder's state at the wrap
+    # equals the state it was encoded with.
+    w = _smooth(m)
+    body[L - m:] = body[L - m:] * (1 - w) + pre_m * w
+    body[L - 4:] = pre_m[-4:]
+
+    data = np.concatenate([head, body])
+
+    # attack transients are much taller than the sustained tone; leave the
+    # tone as loud as 4-bit BRR resolution wants and squash only the peaks
+    lvl = float(np.abs(body).max()) or 1.0
+    ceil = crest * lvl
+    over = np.abs(data) > ceil
+    if over.any():
+        data = np.where(over, np.sign(data) * (ceil + (np.abs(data) - ceil) * 0.35),
+                        data)
+    data = normalise(data, peak)
+
+    c4 = int(round(note_hz('C4') * pp))
+    s = it.Sample(os.path.basename(path)[:24], data.tolist(), c4,
+                  loop=True, loop_start=H)
+    s.cycle = pp
     s.periods = k
+    s.f0 = f0
+    s.root = 'C4'           # note 60 sounds middle C
     return s
 
 
-def oneshot(path, rate=10000, ms=260, tail_ms=40, peak=0.95, note=None):
-    """Percussion: trimmed to the hit, faded out at the end so the sample does
-    not stop on a non-zero value and click."""
+def _bandlimit(x, rate, cutoff):
+    n = len(x)
+    nfft = 1 << int(math.ceil(math.log2(n + 8)))
+    spec = np.fft.rfft(x, nfft)
+    f = np.fft.rfftfreq(nfft, 1.0 / rate)
+    spec *= 1.0 / (1.0 + (f / cutoff) ** 8)
+    return np.fft.irfft(spec, nfft)[:n]
+
+
+def spectral_pitch(buf, sr, hint_hz, t0=0.04, t1=0.6):
+    """Strongest partial near `hint_hz`, refined to a fraction of a cent.
+
+    For struck bars, plucked strings and the like the fundamental is the
+    strongest partial in the first half second, and unlike a period detector
+    this does not care that the waveform is not periodic. It is a measurement,
+    not a search: it looks only within an octave of the hint."""
+    a, b = int(sr * t0), int(sr * t1)
+    seg = buf[a:b]
+    if len(seg) < 512:
+        return None
+    seg = seg * np.hanning(len(seg))
+    nfft = 1 << 18
+    mag = np.abs(np.fft.rfft(seg, nfft))
+    f = np.fft.rfftfreq(nfft, 1.0 / sr)
+    band = (f > hint_hz * 0.7) & (f < hint_hz * 1.42)
+    if not band.any():
+        return None
+    i = int(np.argmax(np.where(band, mag, 0.0)))
+    if 0 < i < len(mag) - 1:
+        la, lb, lc = (math.log(mag[i - 1] + 1e-12), math.log(mag[i] + 1e-12),
+                      math.log(mag[i + 1] + 1e-12))
+        den = la - 2 * lb + lc
+        if abs(den) > 1e-12:
+            return f[i] + 0.5 * (la - lc) / den * (f[1] - f[0])
+    return f[i]
+
+
+def oneshot(path, rate=10000, ms=260, tail_ms=40, peak=0.95, label=None,
+            tilt_db=0.0, lp=None, attack_thresh=0.01, measure='spectrum'):
+    """Percussion and plucks: trimmed to the hit, low-passed properly, faded
+    out at the end so the sample does not stop on a non-zero value and click.
+
+    `label` is the sounding pitch of the recording. A pitched one-shot is then
+    tuned so tracker note 60 plays middle C -- the same convention as the
+    sustained instruments -- and unpitched percussion (label None) is simply
+    triggered at note 60 and plays at the stored rate.
+
+    With `measure` the label is checked and the *measured* pitch is what the
+    sample is tuned to ('spectrum' for bars, 'yin' for strings -- the period
+    detector, since a plucked string's transient is not a partial): zither strings and marimba bars are
+    not on the equal-tempered grid, and a marimba fifty cents flat is not
+    something a tuning table can hide. Bells pass measure=False, because the
+    pitch a tubular bell is heard at is not its strongest partial."""
     src, sr = read_wav(path)
-    src = src[onset(src, 0.01):]
-    buf = resample(src, sr, rate)
+    src = src[onset(src, attack_thresh):]
+    src = shape(src, sr, hp=25.0, tilt_db=tilt_db)
+    f_true = note_hz(label) if label else None
+    if label and measure:
+        if measure == 'yin':
+            fm = detect_f0(src, sr, lo=60.0, start=int(sr * 0.06),
+                           seconds=0.25)
+        else:
+            fm = spectral_pitch(src, sr, note_hz(label))
+        cents = 1200 * math.log(fm / f_true, 2) if fm else 9999
+        if abs(cents) > 60:
+            raise SystemExit("%s: labelled %s (%.1f Hz) but measures %s"
+                             % (os.path.basename(path), label, f_true,
+                                "%.1f Hz, %+d cents" % (fm, cents) if fm
+                                else "nothing"))
+        f_true = fm
+    buf = resample(src, sr, rate, cutoff=lp)
 
     n = _align(int(rate * ms / 1000.0))
     n = min(n, _align(len(buf)))
     buf = buf[:n]
 
     tail = min(len(buf), int(rate * tail_ms / 1000.0))
-    for i in range(tail):
-        w = i / float(tail)
-        buf[len(buf) - tail + i] *= (1.0 - w) ** 2
+    w = np.arange(tail) / float(tail)
+    buf[len(buf) - tail:] *= (1.0 - w) ** 2
+    buf = normalise(buf, peak)
 
-    # A one-shot is triggered at C5, so C5Speed is simply the stored rate --
-    # unless the recording has a pitch worth preserving across the keyboard,
-    # which for the slit drum it does.
-    c5 = rate if note is None else int(round(rate * (note_hz('C5')
-                                                     / note_hz(note))))
-    return it.Sample(os.path.basename(path)[:24], buf, c5, loop=False)
+    c5 = int(round(rate * (note_hz('C4') / f_true))) if label else rate
+    s = it.Sample(os.path.basename(path)[:24], buf.tolist(), c5, loop=False)
+    s.root = label
+    s.f0 = f_true
+    return s
 
 
 def brr_bytes(sample):

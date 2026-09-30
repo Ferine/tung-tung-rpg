@@ -34,12 +34,35 @@ NOTE_OFF = 255
 
 
 class Sample:
-    def __init__(self, name, data, rate, loop=False, loop_start=0):
+    """One sample and the one instrument that plays it.
+
+    `gv` is the sample's global volume, 0-64. SNESMOD multiplies it into the
+    channel level (64 is unity), so it can only *attenuate* -- which is how the
+    orchestra is balanced: every sample is normalised to the same peak, then
+    the quieter voices are simply turned down less.
+
+    `fadeout` is the release. SNESMOD's key-off starts a fade that subtracts
+    (fadeout / 4) from a counter of 255 every tick, so a note-off on an
+    instrument with fadeout 0 *never ends*; 1020 / fadeout is the release in
+    ticks. That is the difference between a phrase that breathes and one that
+    is chopped with a hard cut at the end of every note.
+
+    `env` is a volume envelope as (tick, level 0-64) nodes; the envelope holds
+    at node `sustain` while the key is down and runs on to its end after
+    key-off. SNESMOD supports one sustain node, no loops-with-sustain, and
+    ticks 1-256 apart.
+    """
+    def __init__(self, name, data, rate, loop=False, loop_start=0, gv=64,
+                 fadeout=0, env=None, sustain=None):
         self.name = name
         self.data = data            # floats in [-1, 1]
         self.rate = rate            # C5Speed
         self.loop = loop
         self.loop_start = loop_start
+        self.gv = gv
+        self.fadeout = fadeout
+        self.env = env
+        self.sustain = sustain
 
 
 class Module:
@@ -74,23 +97,43 @@ def _pcm(s):
         for v in s.data)
 
 
-def _envelope():
-    """A disabled envelope block (82 bytes). Every instrument gets three."""
+def _envelope(nodes=None, sustain=None):
+    """An 82-byte IT envelope block. Without nodes it is disabled, which is
+    what the pan and pitch envelopes always are (SNESMOD supports neither)."""
     b = bytearray(82)
-    b[0] = 0
-    b[1] = 2
-    b[6 + 0] = 64
-    struct.pack_into('<H', b, 6 + 1, 0)
-    b[6 + 3] = 64
-    struct.pack_into('<H', b, 6 + 4, 10)
+    if not nodes:
+        b[0] = 0
+        b[1] = 2
+        b[6 + 0] = 64
+        struct.pack_into('<H', b, 6 + 1, 0)
+        b[6 + 3] = 64
+        struct.pack_into('<H', b, 6 + 4, 10)
+        return bytes(b)
+    if len(nodes) > 25:
+        raise ValueError('an IT envelope has at most 25 nodes')
+    flags = 0x01
+    if sustain is not None:
+        flags |= 0x04
+        b[4] = b[5] = sustain
+    b[0] = flags
+    b[1] = len(nodes)
+    last = -1
+    for i, (tick, level) in enumerate(nodes):
+        if tick <= last and i:
+            raise ValueError('envelope ticks must increase')
+        last = tick
+        b[6 + i * 3] = max(0, min(64, int(level)))
+        struct.pack_into('<H', b, 6 + i * 3 + 1, tick)
     return bytes(b)
 
 
-def _instrument(index, name):
+def _instrument(index, s):
+    name = s.name
     b = bytearray(554)
     b[0:4] = b'IMPI'
     b[4:16] = (name[:11].encode('latin1') + b'\0' * 12)[:12]
     b[17] = 1           # NNA: continue
+    struct.pack_into('<H', b, 20, int(s.fadeout))
     b[24] = 128         # global volume
     b[25] = 32          # default pan, unused
     struct.pack_into('<H', b, 28, 0x0214)
@@ -100,7 +143,7 @@ def _instrument(index, name):
     for note in range(120):
         b[64 + note * 2 + 0] = note
         b[64 + note * 2 + 1] = index
-    b[304:386] = _envelope()
+    b[304:386] = _envelope(s.env, s.sustain)
     b[386:468] = _envelope()
     b[468:550] = _envelope()
     return bytes(b)
@@ -110,7 +153,7 @@ def _sample_header(s, data_offset):
     b = bytearray(80)
     b[0:4] = b'IMPS'
     b[4:16] = (s.name[:11].encode('latin1') + b'\0' * 12)[:12]
-    b[17] = 64                                   # global volume
+    b[17] = max(0, min(64, int(s.gv)))           # global volume
     b[18] = 0x01 | 0x02 | (0x10 if s.loop else 0)  # data | 16-bit | loop
     b[19] = 64                                   # default volume
     b[20:46] = (s.name[:25].encode('latin1') + b'\0' * 26)[:26]
@@ -194,7 +237,7 @@ def write_it(mod, path):
     ins_offsets, blob = [], bytearray(message)
     for i in range(ins_n):
         ins_offsets.append(base + len(blob))
-        blob += _instrument(i + 1, mod.samples[i].name)
+        blob += _instrument(i + 1, mod.samples[i])
 
     smp_offsets = []
     hdr_at = base + len(blob)
