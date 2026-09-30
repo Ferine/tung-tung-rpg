@@ -411,10 +411,10 @@ def tung_scene(pose):
     return s
 
 
-def render_sprite(scene, materials, palette, size=32):
+def render_sprite(scene, materials, palette, size=32, pitch=-0.2):
     global PALETTE
     PALETTE = palette
-    c = render(scene, materials, size=size)
+    c = render(scene, materials, size=size, pitch=pitch)
     c.outline()
     return c
 
@@ -829,6 +829,19 @@ def bake():
             scene, materials, size = scenes[key]
             emit(key, render_sprite(scene(), materials,
                                     gs.PALS[getattr(gs, pal)], size))
+
+    # The field: the hero's walk and the sleepwalkers, 16x16.
+    import render_field as rf
+    poses = gs.field_poses()
+    for kind in rf.FIELD:
+        if not any(key.startswith(kind + '.') for key, *_ in poses):
+            raise SystemExit('render_field.py: %r is not in '
+                             'gen_sprites.field_poses()' % kind)
+    for key, pal, d, f, _name, _painter in poses:
+        kind = key.split('.')[0]
+        if kind in rf.FIELD:
+            emit(key, rf.render_pose(kind, d, f, gs.PALS[getattr(gs, pal)]))
+
     # Battle backdrops: five palettes, the dawn's five for the one that has
     # it, the palette slot of every character, and the dots.
     import render_backdrops as rb
@@ -846,6 +859,33 @@ def bake():
         out.extend(''.join('%d' % v for v in row) for row in r['slot'])
         out.extend(''.join('%x' % v for v in row) for row in r['idx'])
         print('rendered backdrop', key, '(%d characters)' % r['chars'])
+
+    # The land: every region render_regions.py has a look for. A palette
+    # set per animation frame, seven palettes each in SLOTS order; the page
+    # of characters, each its slot digit and then its dots; and the four
+    # characters of every metatile, by gen_world.land_key_str.
+    import gen_world as gw
+    import render_land as rl
+    import render_regions as rr
+    for region in gw.REGIONS:
+        if region['key'] not in rr.LOOKS:
+            continue
+        grid, _rows = gw.land_keys(region)
+        r = rl.bake(grid, lambda k, region=region: rr.render_key(region, k),
+                    gw.land_key_str)
+        out.append('land %s %d %d %d' % (region['key'], rl.FRAMES,
+                                          len(r['chars']), len(r['keys'])))
+        for frame in r['pals']:
+            out.extend(pal_line('pal', p) for p in frame)
+        out.extend('%d%s' % (s, ''.join('%x' % v for v in ix))
+                   for s, ix in r['chars'])
+        # 'k ' first: a cliff's key starts with '#', and a line that starts
+        # with '#' is a comment to the reader.
+        out.extend('k %s %s' % (name, ' '.join('%d' % c
+                                               for c in r['keys'][name]))
+                   for name in sorted(r['keys']))
+        print('rendered land %s (%d keys, %d characters, %d before the cut)'
+              % (region['key'], len(r['keys']), len(r['chars']), r['raw']))
 
     # The title: one set of characters and a palette set per animation step.
     import render_title as rt

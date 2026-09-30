@@ -36,9 +36,9 @@ python3 audition.py FIELD --spectrogram
 ```
 
 Pillow is optional; install it only for the PNG preview and emulator-capture
-tools. numpy is also what re-bakes the pre-rendered sprites with
+tools. numpy is also what re-bakes the pre-rendered art with
 `python3 gen_render.py`, after changing the renderer, a `render_*.py` scene
-module, or the sprite palettes.
+module, the sprite palettes, or a region's map in `gen_world.py`.
 
 ## Before submitting
 

@@ -32,7 +32,7 @@ directly in front of OBJ.2. So:
 
 | layer | contents | note |
 |---|---|---|
-| BG1 | region map / battle backdrop | every tile priority 0; a backdrop uses BG palettes 2 and 4-7 |
+| BG1 | region map / battle backdrop | every tile priority 0; a rendered region uses BG palettes 0-2 and 4-7, a backdrop 2 and 4-7 |
 | BG2 | text and windows | every tile priority 1 |
 | BG3 | unused | its palette would overlap BG1's (A-17) |
 | OBJ | characters | priority 2, under the windows |
@@ -236,6 +236,40 @@ which characters of the resident page are spoken for, so two sprites at
 overlapping names fail the asset build instead of interleaving their pixels and
 coming out wrong on screen.
 
+## Field sprites
+
+Pre-rendered too (`render_field.py`): the hero's eight walking poses and the
+sleepwalkers' fourteen, the same figures and lights as the battlers, cut to the
+field's 16x16 OBJ. They were the last hand-drawn sprites, and the ones on
+screen longest.
+
+The camera looks down at 0.45 radians instead of the battlers' 0.2, because
+the field is drawn in three-quarter view, roofs and house fronts at once. The
+tilt shows the top of the drum, which is what makes it read as a log. It also moves faces: anything on the front of a head
+lands lower on screen than its height says, so eyes sit higher than they
+would face on — placed where the model says, the sleepwalkers' shut eyes
+landed on the chin line in the outline colour and disappeared.
+
+One unit is eight dots here, and a detail thinner than a dot loses the
+downsample's majority vote and is not drawn at all. Tung's brows have to slope
+a whole dot across their length or they merge into a headband, and shut eyes
+are painted onto the head as a band a dot tall instead of modelled.
+
+Frame 0 is also the standing pose, for the hero and for a sleepwalker at rest.
+From the front and back the two frames are mirror images — one foot a dot
+higher, then the other — so standing reads as weight on one foot rather than
+frozen mid-stride. In profile frame 0 has the feet together.
+
+The bat changes hands. On the shoulder it is in the silhouette from the front
+and behind, but in profile the near shoulder puts it across his face, so in the
+side views it is slung across his back from the far hand. The hero's left is
+therefore its own render rather than his right mirrored — which the OBJ engine
+could do, and does for the sleepwalkers.
+
+`gen_sprites.field_poses()` is the single list of keys, palettes and sheet
+names; the bake renders from it and the sheet is placed from it. The painters
+stay as the fallback for any kind `FIELD` does not cover.
+
 ## The title screen
 
 Pre-rendered (`render_title.py`): a hillside village under the moon, and the
@@ -261,26 +295,97 @@ The title also has its own sky table now. It used to inherit whichever
 region's H-DMA was programmed last, and a battle sky's subtract turned the gold
 to mud by the second line of letters.
 
-## Animated tiles
+## The land
 
-Every liquid painter in `terrain.py` takes a `phase`, so the same metatile can
-be cut four times with its crests moved along. Playing them back is one VRAM
-transfer every eight frames — but only if the characters involved are
-*contiguous*, because a V-blank has room for one small DMA and not for eight
-scattered ones.
+Every region is pre-rendered too: `render_land.py` is the engine and
+`render_regions.py` says what each character is in each place — the
+moonlight, the materials, a well or a spring or a tank. `terrain.py`'s painters
+stay as the fallback for a region with no look, and a painted region stands
+still.
 
-So `gen_world.py` reserves the animated characters at the **head** of each
-region's pool, before anything else is added, and the runtime copies characters
-0..n-1 of the region tileset. Eight characters is 256 bytes, under 100 µs at
-DMA rate, inside a V-blank of over 215 µs — and the OAM copy on channel 7 has
-already finished by the time the main loop gets there.
+A battle backdrop is one picture. A region is 1024 cells drawn from sixty-odd
+metatiles, and every one of them has to meet every neighbour it is ever put
+beside. Four things make that work.
 
-One consequence worth stating: after the reservation the pool's dedup table is
-cleared. An ordinary tile that happens to be pixel-identical to a water tile
-would otherwise share its character and ripple along with the sea.
+**The camera only moves things up and down the screen.** It is oblique, the
+way the field is drawn: the ground seen straight down at eight dots to the
+unit, and a unit of height rising 0.75 units up the screen. Every ray is
+parallel and runs up and back, so a ray only ever crosses its own column. A
+metatile's window therefore shows its own cell, the strip of a *tall* south
+neighbour that rises into it, and — if it is a pit — the face of the cell to
+its north. Never east or west. So a cell can be rendered on its own, from a
+context of at most three rows.
 
-| region | animates | chars |
-|---|---|---|
+**A key is everything that can show.** `gen_world.land_key` gives each cell
+its character and variant, which of its four sides its surface runs on
+through (a road into a road, water into water — and for water, *how deep*
+the water next door is, or the colour steps at the border), which sides its
+mass joins (canopy, cliff, iron wall, pipe), the key of a tall south
+neighbour and the key of a pit's north neighbour. That is autotiling on four
+neighbours, and it is why a road has a verge, a river has banks and a forest
+is one canopy instead of a grid of balls. Neighbour keys are cut down to what
+shows through: a tall neighbour's north strip depends on which ways it joins
+east, west and north, and not on its paving or its south edge. Before that cut
+the fields came to 130 keys; after it, 109.
+
+**Every point is lit by its own cell.** Ambient occlusion, shadows and the
+pool round a lamp all come from the geometry of the cell the point is in and
+nothing else, so a point on a border looks the same from both of the
+metatiles it can appear in, whatever they believe about their other
+neighbours. Detail that straddles a border — a grass blade, a cobble, a glint
+on the river — comes from a lattice whose outer ring is seeded the same way in
+every cell. The first lamp lit a square of the plaza: its pool reached past
+its own cell, the next cell was not lit by it, and the border showed. Pools
+fall off across the ground now and die out inside their cell.
+
+**Seven palettes, and the land moves by palette.** A region's characters are
+cut the way a backdrop's are — every character takes whichever of BG palettes
+0, 1, 2 and 4-7 draws it best; 3 is the windows'. Nothing else in the field
+uses 2 or 4-7, and battle, the title and the Mode 7 warp all load their own
+colours there, so `ppuLoadLandPalette` puts the region's back in
+`fieldLoadArea`, `ppuSetFieldMode` and when the menu closes.
+
+Water, lamps, glowing caps, furnace mouths and rifts are rendered four times
+and cut together as one picture with twelve channels, the way the title is.
+What comes out is one set of characters and four palette sets, and
+`ppuAnimateLand` uploads the next set every eight frames: 224 bytes of CGRAM,
+against the 256 bytes of VRAM the tile animation it replaced cost — and that
+could only afford eight moving characters, which is two metatiles of sea and no
+banks at all. A pixel that does not move may only take a colour that does not
+move either, or the ground would shimmer with the sea. It does not run while
+the field menu is up, because palettes 0 and 1 are the menu's red and green
+glyphs then.
+
+The moon's glints on the water are points on that lattice, each twinkling on
+its own phase. Worked out from summed ripples instead, a glint repeats every
+metatile, and a river of identical diamonds is a quilt.
+
+| region | keys | characters | moves |
+|---|---|---|---|
+| VILLAGE | 62 | 162 | the lamps on the square |
+| FIELDS | 109 | 212 | the river |
+| FOREST | 79 | 166 | the glowing caps |
+| SHORE | 104 | 213 | the sea, the tide up the beach |
+| SALT | 24 | 69 | nothing, which is the point of the salt flat |
+| FORTRESS | 45 | 71 | the furnace mouths |
+| HUSH | 20 | 40 | the rifts, the last well |
+
+The budget is characters *after* the cut, and it goes further than the keys
+suggest: half a mass does not depend on the far side of the cell, so the
+quantiser finds the same characters in keys that only differ over there. No
+region needs `fit_budget` to merge anything.
+
+Two bugs worth writing down. A cliff's key starts with `#`, and `load_renders`
+skips lines that start with `#` as comments: every shore cliff would have
+vanished from the bake, so key lines carry a `k ` in front. And a column's
+heightfield says nothing about the column beside it, so a ray marching down a
+pit took one long step straight through the face of the island to its north;
+the march never steps further than the column's border now.
+
+`python3 preview.py anim` renders each moving region under each of its
+palette sets, two by two, so a broken frame shows without booting anything.
+
+---|---|---|
 | VILLAGE | lantern flame | 4 |
 | FIELDS | water | 4 |
 | FOREST | mushroom caps | 8 |
@@ -521,11 +626,12 @@ themselves stay in the root because `snes_rules` globs root `*.asm` into
 | `gen_assets.py` | driver: runs every generator below |
 | `gen_font.py` | BG2 sheet — glyphs, icons, gauges, window frame, logo letters |
 | `terrain.py` | metatile painters, shared by every region |
-| `gen_world.py` | seven regions: tilesets, tilemaps, collision, events, exits |
+| `gen_world.py` | seven regions: maps, collision, events, exits, the land keys, and tilesets and tilemaps cut from the baked land |
 | `gen_battle.py` | six battle backdrops: cuts the baked renders to the 256-character page, one palette per character |
 | `gen_sprites.py` | resident OBJ sheet, streamed enemy blob, dialogue portraits, the sleepwalkers |
 | `gen_render.py` | raymarches the pre-rendered party and every scene in `render_*.py`, and bakes them into `assets/renders.txt` (needs numpy; not run by `gen_assets.py`) |
-| `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`, `title`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop |
+| `render_land.py` | the land engine: the oblique camera, a cell's column, the region palette cut |
+| `render_*.py` | scenes for `gen_render.py`: `sleepers`, `wilds`, `canon`, `bosses`, `portraits`, `backdrops`, `title`, `field`, `regions`; a key in `SCENES` replaces that `ENEMY_ART` or `PORTRAIT_ART` painter, a key in `BACKDROPS` that region's painted backdrop, a key in `FIELD` that kind's walking poses, a key in `LOOKS` that region's tileset |
 | `gen_hdma.py` | per-scanline colour and scroll tables |
 | `gen_mode7.py` | 256-colour Mode 7 encounter-warp map, characters and palette |
 | `gen_music.py` | assembles the score and the effects into two `.it` modules and `res/music.h`; prints the ARAM budget |
@@ -589,12 +695,14 @@ python3 gen_assets.py
 make
 ```
 
-The party battlers are pre-rendered, and the renders are checked in as
-`assets/renders.txt` rather than produced on every build: they are floating
-point, and numpy on another machine can land one pixel on the other side of a
-colour ramp. `gen_sprites.py` reads the baked file and refuses to run if it is
-older than `gen_render.py`, a `render_*.py` scene module, or the palettes.
-After changing any of them:
+The sprites, the backdrops, the title and the land are pre-rendered, and the
+renders are checked in as `assets/renders.txt` rather than produced on every
+build: they are floating point, and numpy on another machine can land one
+pixel on the other side of a colour ramp. `gen_sprites.py` reads the baked
+file and refuses to run if it is older than `gen_render.py`, a `render_*.py`
+scene module, or the palettes, and `gen_world.py` refuses if a map changed
+and now needs a metatile the bake does not have. After changing any of them
+(about seven minutes, most of it the land):
 
 ```sh
 python3 -m pip install numpy

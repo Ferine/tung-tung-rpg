@@ -50,8 +50,9 @@ static void battlePaletteLoad(u8 which);
 static dmaMemory tblPtr;
 
 /* CGRAM colour indices. In mode 1 the BG1/BG2 palettes share $00-$7F and OBJ
- * owns $80-$FF (ppu-graphics.md A-17). The field and the windows use BG
- * palettes 0-3; a battle backdrop adds 4-7; the eight OBJ ones start at 128. */
+ * owns $80-$FF (ppu-graphics.md A-17). The windows have BG palette 3; a
+ * rendered region has 0-2 and 4-7, a battle backdrop 2 and 4-7; the eight OBJ
+ * ones start at 128. */
 #define CG_FIELD    (PAL_FIELD * 16)
 #define CG_BATTLE   (PAL_BATTLE * 16)
 #define CG_BATTLE_HI (4 * 16)        /* a backdrop's palettes 4-7 */
@@ -260,12 +261,14 @@ void ppuSetFieldMode(void) {
     /* Put the region's own palettes back. Battle borrows slots 0 and 1 for
      * red and green glyphs, and without this the world came back from every
      * fight wearing them -- pale lavender ground and orange trees, for the
-     * rest of the session. CGRAM is writable in forced blank, V-blank or
-     * H-blank (ppu-graphics.md); this is called from a state change, which is
-     * none of them, so it makes its own window. */
+     * rest of the session. The backdrop has 2 and 4-7, which the rendered
+     * land uses too, and the Mode 7 warp has all of CGRAM. CGRAM is writable
+     * in forced blank, V-blank or H-blank (ppu-graphics.md); this is called
+     * from a state change, which is none of them, so it makes its own
+     * window. */
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
-    dmaCopyCGram(areaPal(curArea), 0, 64);
+    ppuLoadLandPalette();
     REG_INIDISP = fadeLevel;
     /* Top-down, so no sky -- just a vignette, and no shimmer: the scroll
      * table would have to be rebuilt from the camera every frame. */
@@ -412,31 +415,43 @@ void ppuShake(u8 frames) {
     shakeTimer = frames;
 }
 
-/* Called once a frame from the V-blank window. */
-/* --- tile animation ------------------------------------------------------
+/* --- land animation ------------------------------------------------------
  *
- * Five regions keep their moving characters at the head of the tileset --
- * gen_world.py reserves them there precisely so this is one transfer and not
- * eight. Four phases live in ROM; the frame counter picks one and DMAs 128 or
- * 256 bytes over characters 0..n-1 of the BG1 field base.
+ * The rendered land moves by palette. gen_render.py renders water, lamps,
+ * furnaces and rifts once per frame and cuts every frame together, so one set
+ * of characters serves all of them and only the colours differ; areaAnm()
+ * holds a copy of CGRAM 0-7 per frame. Every eight frames the next goes up:
+ * palettes 0-2, then 4-7, stepping over the windows' 3. 224 bytes, about the
+ * 256 the tile animation it replaced cost, and with no cap on how many
+ * characters move -- which is what lets a river's banks ripple too.
  *
- * This must run inside the V-blank window and nowhere else: ppu-graphics.md is
- * explicit that VRAM takes writes in forced blank or V-blank only, and the
- * silent failure mode -- a transfer that simply does nothing -- is the same one
- * that made every enemy in the game invisible. Called from main()'s V-blank
- * block, after the NMI's own OAM copy on channel 7 has finished.
+ * CGRAM takes writes in forced blank, V-blank or H-blank only
+ * (ppu-graphics.md), so this runs from main()'s V-blank block. Not while the
+ * field menu is up: palettes 0 and 1 hold its red and green glyphs then.
  */
-void ppuAnimateTiles(void) {
-    u8 n = areaAnimTiles[curArea];
+void ppuAnimateLand(void) {
+    u8 n = areaAnimFrames[curArea];
+    u8 *pal;
 
-    if (!n || gameState != ST_FIELD)
+    if (!n || gameState != ST_FIELD || menuActive)
         return;
-    if ((frameCounter & 7) != 0)      /* eight frames a phase, 1.9 Hz round */
+    if ((frameCounter & 7) != 0)      /* eight frames a step */
         return;
 
-    animPhase = (animPhase + 1) & 3;
-    dmaCopyVram(areaAnm(curArea) + (u16)animPhase * (u16)n * 32,
-                VRAM_FIELD_GFX, (u16)n * 32);
+    if (++animPhase >= n)
+        animPhase = 0;
+    pal = areaAnm(curArea) + (u16)animPhase * 256;
+    dmaCopyCGram(pal, CG_FIELD, 96);
+    dmaCopyCGram(pal + 128, CG_BATTLE_HI, 128);
+}
+
+/* A region's own palettes, frame 0: 0-2 and 4-7, around the windows' 3. */
+void ppuLoadLandPalette(void) {
+    u8 *pal = areaPal(curArea);
+
+    dmaCopyCGram(pal, CG_FIELD, 96);
+    dmaCopyCGram(pal + 128, CG_BATTLE_HI, 128);
+    animPhase = 0;
 }
 
 
@@ -452,7 +467,7 @@ void ppuAnimateTiles(void) {
  * transfers rather than one, and why gen_sprites writes the art block-row-
  * major in the first place.
  *
- * Frames where ppuAnimateTiles runs are skipped: it wants the same V-blank and
+ * Frames where ppuAnimateLand runs are skipped: it wants the same V-blank and
  * neither of them is urgent.
  */
 void ppuFaceService(void) {
@@ -501,7 +516,10 @@ void ppuUpdate(void) {
             dmaCopyCGram((u8 *)&fontalert_pal, PAL_ALERT * 16, 32);
             dmaCopyCGram((u8 *)&fontgood_pal, PAL_GOOD * 16, 32);
         } else {
-            dmaCopyCGram(areaPal(curArea), 0, 64);
+            /* All of them, not just 0 and 1: the others went on animating
+             * while the menu was up, and half a palette set a frame out of
+             * step is a region that flickers when the menu closes. */
+            ppuLoadLandPalette();
             bgSetEnable(0);
         }
         menuPalettePending = 0;

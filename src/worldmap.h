@@ -216,11 +216,11 @@ static u8 *areaAnm(u8 a) {
     }
 }
 
-/* Characters 0..areaAnimTiles-1 of a region's tileset are
- * rewritten from areaAnm() every few frames -- see fieldAnimate.
- * Zero means the region has no moving water. */
-static const u8 areaAnimTiles[AREA_COUNT] = {
-    4, 4, 8, 8, 0, 4, 4
+/* Palette sets in a region's animation loop; areaAnm()
+ * holds that many 256-byte copies of CGRAM 0-7 -- see
+ * ppuAnimateLand. Zero means the region stands still. */
+static const u8 areaAnimFrames[AREA_COUNT] = {
+    4, 4, 4, 4, 0, 4, 4
 };
 
 static const u8 areaMusic[AREA_COUNT] = {

@@ -85,7 +85,7 @@ void fieldLoadArea(u8 area, u8 mx, u8 my) {
     REG_INIDISP = 0x80;
     dmaCopyVram(areaPic(area), VRAM_FIELD_GFX, 8192);
     dmaCopyVram(areaMap(area), VRAM_FIELD_MAP, 8192);
-    dmaCopyCGram(areaPal(area), 0, 64);
+    ppuLoadLandPalette();
 
     ppuLoadBackdrop(areaBackdrop[area]);
     REG_INIDISP = fadeLevel;

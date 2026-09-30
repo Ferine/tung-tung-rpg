@@ -486,25 +486,14 @@ EXITS = {
 SPAWN = ('VILLAGE', 16, 20)
 
 
-# ---- tile animation ----------------------------------------------------
+# ---- animation ---------------------------------------------------------
 #
-# The liquid painters all take a `phase`, so the same metatile can be cut four
-# times with its crests moved along. Animating it costs one VRAM transfer per
-# region per few frames -- but only if the characters involved are contiguous,
-# because V-blank has room for one small DMA and not for eight scattered ones.
-# So the animated characters are reserved at the *head* of the region's pool,
-# before anything else is added, and the runtime copies characters
-# 0..ANIM_TILES-1 of the region tileset.
-#
-# 8 characters x 32 bytes = 256 bytes a frame. At the ~2.6 MB/s of a DMA that
-# is under 100 us inside a V-blank of over 215 us (cpu-system.md), with the
-# OAM copy on channel 7 already done by then.
-
-ANIM_PAINTERS = ('water', 'shallow', 'lantern', 'furnace', 'rift',
-                 'mushroom')
-ANIM_PHASES = 4
-ANIM_MAX = 8
-
+# The land moves by palette: water, lamps, furnaces and rifts are rendered
+# once per frame and cut together (render_land.py), so what changes from one
+# frame to the next is colours, never characters. The runtime uploads one of
+# a region's palette sets every eight frames -- 224 bytes of CGRAM, against the
+# 256 bytes of VRAM the tile animation used to cost, and with no limit on how
+# many characters move.
 
 # ---- build -------------------------------------------------------------
 
@@ -523,16 +512,6 @@ class Pool:
         return self.index[key]
 
 
-def anim_variants(painter_name):
-    """How many variants of a painter the map is allowed to use. Animated
-    painters are capped: every variant costs four characters out of the
-    per-frame transfer budget."""
-    nvar = T.PAINTERS[painter_name][1]
-    if painter_name in ANIM_PAINTERS:
-        return min(nvar, ANIM_MAX // 4)
-    return nvar
-
-
 def cut(px16, ox=0, oy=0):
     out = []
     for cy in (0, 8):
@@ -542,54 +521,221 @@ def cut(px16, ox=0, oy=0):
     return out
 
 
-def build_region(region):
-    rng = Rng(region['seed'])
-    m = region['build'](rng)
-    rows = m.rows()
+# ---- the rendered land: what a metatile depends on -------------------------
+#
+# gen_render.py renders every metatile a region uses (render_land.py), and a
+# rendered metatile depends on more than its own character. Its surface blends
+# into the ground at every side where the neighbour is something else, so a
+# road has kerbs and a river has banks instead of square edges. A mass --
+# canopy, cliff, iron wall -- is one shape across all the cells that share it.
+# And the view is three-quarter: anything tall rises up the screen into the
+# cell north of it, so that cell has to know what is standing to its south,
+# and a pit shows the face of whatever stands to its north.
+#
+# All of that is a key, computed here without numpy so the bake and the
+# tilemap agree on it: (char, variant, surface links N E S W, mass links
+# N E S W, the key of a tall south neighbour, the key of the north neighbour
+# of a pit). The camera only moves things up and down the screen, so east and
+# west never show through a cell and never enter its key.
 
+SURFACE = {'-': 'path', 'o': 'plaza', '~': 'deep', 's': 'shallow',
+           '_': 'beach', '=': 'bridge', 'w': 'grate'}
+WATER = {'deep', 'shallow', 'beach', 'bridge'}
+# surface -> {neighbour surface it runs on into: the letter its key records}.
+# A road does not care what it meets; water does, because depth has to agree
+# across the border or the colour of the water steps there.
+SURFACE_LINKS = {
+    'path': {'path': '1', 'plaza': '1', 'bridge': '1'},
+    'plaza': {'plaza': '1', 'path': '1'},
+    'deep': {'deep': 'd', 'shallow': 's', 'beach': 'b', 'bridge': 'd'},
+    'shallow': {'deep': 'd', 'shallow': 's', 'beach': 'b', 'bridge': 'd'},
+    'beach': {'deep': 'd', 'shallow': 's', 'beach': 'b', 'bridge': 'd'},
+    'bridge': {'deep': 'd', 'shallow': 's', 'beach': 'b', 'bridge': 'd',
+               'path': 'p'},
+    'grate': {'grate': '1'},
+}
+# char -> (mass, the chars it joins up with)
+MASS = {'T': ('canopy', 'T'), '^': ('mountain', '^'), '#': ('cliff', '#'),
+        'd': ('dune', 'd'), 'H': ('iron', 'H'), 'P': ('pipe', 'P'),
+        '=': ('deck', '=-'), 'p': ('platform', 'pW')}
+TALL = set('T^#HY34')
+# The last region is islands over nothing: every cell stands over the same
+# floor of stars, far down, and the platforms are slabs hung above it. A
+# pit shows the face of the slab to its north.
+PITS = set('vR')
+LAND_VARIANTS = {'.': 6, ',': 4, 'f': 3, 'b': 2, 'O': 2, 'x': 4, 'I': 3,
+                 'p': 3, 'B': 2, 'c': 2, 'y': 2, 'm': 2, 'r': 2, 'Y': 2}
+BASE_GROUND = set('.,fxIp')
+
+
+def land_surface(region, ch):
+    """What a cell is paved with, if not the region's own ground. The
+    village's well and lamps stand on the square."""
+    if region['key'] == 'VILLAGE' and ch in 'W!':
+        return 'plaza'
+    return SURFACE.get(ch)
+
+
+def land_mass(region, ch):
+    if region['key'] == 'HUSH' and ch == 'W':
+        return MASS['p']            # the last well stands on an island
+    return MASS.get(ch)
+
+
+def land_key(region, rows, x, y, vr, near=True):
+    ch = rows[y][x]
+
+    def nb(dx, dy):
+        xx, yy = x + dx, y + dy
+        if 0 <= xx < MAP_W and 0 <= yy < MAP_H:
+            return rows[yy][xx]
+        return ch               # the map's edge continues whatever is there
+
+    sides = [nb(0, -1), nb(1, 0), nb(0, 1), nb(-1, 0)]
+    surf = land_surface(region, ch)
+    ftok = '' if not surf else ''.join(
+        SURFACE_LINKS[surf].get(land_surface(region, n), '0') for n in sides)
+    mass = land_mass(region, ch)
+    mtok = '' if not mass else ''.join('1' if n in mass[1] else '0'
+                                       for n in sides)
+    south = north = None
+    if near and y < MAP_H - 1 and sides[2] in TALL:
+        south = seen_from_north(land_key(region, rows, x, y + 1, None,
+                                         near=False))
+    if near and y > 0 and ch in PITS and sides[0] not in PITS:
+        north = seen_from_south(land_key(region, rows, x, y - 1, None,
+                                         near=False))
+    nv = LAND_VARIANTS.get(ch, 1)
+    var = vr.next() % nv if vr is not None and nv > 1 else 0
+    # Ground that has to agree with a neighbour renders once, not six times.
+    if ch in BASE_GROUND and (ftok or mtok or south or north):
+        var = 0
+    return (ch, var, ftok, mtok, south, north)
+
+
+def seen_from_north(k):
+    """The part of a tall key that shows through the cell north of it: its
+    north strip. That depends on which way a mass joins east, west and north
+    -- not on its south edge, which stays on its own side of the border, and
+    not on its paving, which is under it."""
+    ch, var, _ftok, mtok, _s, _n = k
+    if mtok:
+        mtok = mtok[0] + mtok[1] + '1' + mtok[3]
+    return (ch, var, '', mtok, None, None)
+
+
+def seen_from_south(k):
+    """What a pit sees of the slab to its north: its south face, shaped by
+    which way the slab joins east and west."""
+    ch, var, _ftok, mtok, _s, _n = k
+    if mtok:
+        mtok = '1' + mtok[1] + mtok[2] + mtok[3]
+    return (ch, 0, '', mtok, None, None)
+
+
+def land_key_str(k):
+    if k is None:
+        return ''
+    ch, var, ftok, mtok, south, north = k
+    return '%s%d/%s/%s/(%s)/(%s)' % (ch, var, ftok, mtok, land_key_str(south),
+                                     land_key_str(north))
+
+
+def land_keys(region):
+    """The 32x32 keys of a region, row-major, and its map rows."""
+    rows = region['build'](Rng(region['seed'])).rows()
+    vr = Rng(region['seed'] ^ 0x1A4D)
+    return [[land_key(region, rows, x, y, vr) for x in range(MAP_W)]
+            for y in range(MAP_H)], rows
+
+
+def collision(region, m, rows):
+    collide = bytearray(MAP_W * MAP_H)
+    for my in range(MAP_H):
+        for mx in range(MAP_W):
+            ch = rows[my][mx]
+            flags = BLOCK if ch in HOUSE_CHARS else ALPHABET[ch][2]
+            if region.get('safe'):
+                flags &= ~ENC
+            ev = m.events.get((mx, my), 0)
+            if ev:
+                flags |= TRIG
+            collide[my * MAP_W + mx] = flags | (ev << 4)
+    return collide
+
+
+def quadrants(tilemap):
+    """A 64x64 tilemap is four 32x32 screens stored consecutively (A-14)."""
+    quads = []
+    for qy in (0, 32):
+        for qx in (0, 32):
+            for row in range(32):
+                base = (qy + row) * TILE_MAP_W + qx
+                quads.extend(tilemap[base:base + 32])
+    return quads
+
+
+LAND_SLOTS = (0, 1, 2, 4, 5, 6, 7)      # render_land.SLOTS; 3 is the windows'
+
+
+def cgram_block(pals):
+    """Seven palettes as the eight CGRAM holds them, 3 left blank."""
+    out = bytearray()
+    for slot in range(8):
+        if slot == 3:
+            out += bytes(32)
+            continue
+        out += g.palette_bin([(0, 0, 0)] + list(pals[LAND_SLOTS.index(slot)]))
+    return bytes(out)
+
+
+def build_land(region, land):
+    """The rendered region: the baked page, and a tilemap that names each
+    character's own palette."""
+    grid, _rows = land_keys(region)
+    if len(land['chars']) > 256:
+        raise SystemExit("%s needs %d characters, a page holds 256"
+                         % (region['key'], len(land['chars'])))
+    sheet = g.Sheet(256)
+    for i, (_slot, ix) in enumerate(land['chars']):
+        ox, oy = sheet.origin(i)
+        for y in range(8):
+            for x in range(8):
+                sheet.set(ox + x, oy + y, ix[y * 8 + x])
+    tilemap = [0] * (TILE_MAP_W * TILE_MAP_H)
+    for my in range(MAP_H):
+        for mx in range(MAP_W):
+            name = land_key_str(grid[my][mx])
+            if name not in land['keys']:
+                raise SystemExit(
+                    "%s: the baked land has no metatile %s -- the map "
+                    "changed since the bake; run 'python3 gen_render.py' "
+                    "(needs numpy)" % (region['key'], name))
+            for i, c in enumerate(land['keys'][name]):
+                tx, ty = mx * 2 + (i & 1), my * 2 + (i >> 1)
+                tilemap[ty * TILE_MAP_W + tx] = g.map_entry(
+                    c, pal=LAND_SLOTS[land['chars'][c][0]])
+    frames = [cgram_block(f) for f in land['frames']]
+    moving = any(f != frames[0] for f in frames)
+    anim = b''.join(frames) if moving else b''
+    return sheet, quadrants(tilemap), frames[0], anim, \
+        (len(frames) if moving else 0), len(land['chars'])
+
+
+def build_painted(region, rows):
+    """The painted region: terrain.py's metatiles on the semantic palette.
+    The fallback for a region render_regions.py has no look for, and it
+    stands still -- the land animates by palette, and a painted region has
+    one palette of its own."""
     pool = Pool()
     variants = {}          # (char, variant) -> (names, palette)
-    used = sorted({ch for row in rows for ch in row})
-
-    # Reserve the animated characters first so they land at pool index 0 and
-    # upward, contiguous, and record the other three phases of each.
-    frames = [[] for _ in range(ANIM_PHASES)]     # phase -> [cell, ...]
-    for ch in used:
-        if ch in HOUSE_CHARS or ch not in ALPHABET:
-            continue
-        painter_name, pal, flags = ALPHABET[ch]
-        if painter_name not in ANIM_PAINTERS:
-            continue
-        painter, _ = T.PAINTERS[painter_name]
-        for v in range(anim_variants(painter_name)):
-            seed = region['seed'] * 7 + ord(ch) * 131 + v * 977
-            phases = [cut(painter(Rng(seed), phase=p).px)
-                      for p in range(ANIM_PHASES)]
-            names = []
-            for i, c in enumerate(phases[0]):
-                n = pool.add(c)
-                names.append(n)
-                if n == len(frames[0]):            # a genuinely new character
-                    for p in range(ANIM_PHASES):
-                        frames[p].append(phases[p][i])
-            variants[(ch, v)] = (names, pal)
-    nanim = len(frames[0])
-    if nanim > ANIM_MAX:
-        raise SystemExit("%s wants %d animated characters, V-blank affords %d"
-                         % (region['key'], nanim, ANIM_MAX))
-    # Past this point an ordinary tile that happens to equal a water tile must
-    # get its own character, or it would ripple along with the sea.
-    pool.index = {}
-
-    for ch in used:
+    for ch in sorted({ch for row in rows for ch in row}):
         if ch in HOUSE_CHARS:
             continue
         if ch not in ALPHABET:
             raise SystemExit("%s uses terrain %r with no painter"
                              % (region['key'], ch))
         painter_name, pal, flags = ALPHABET[ch]
-        if painter_name in ANIM_PAINTERS:
-            continue                    # already reserved, above
         painter, nvar = T.PAINTERS[painter_name]
         for v in range(nvar):
             c = painter(Rng(region['seed'] * 7 + ord(ch) * 131 + v * 977))
@@ -606,49 +752,40 @@ def build_region(region):
             variants[(HOUSE_CHARS[qi], 0)] = ([pool.add(k) for k in cells], 1)
 
     tilemap = [0] * (TILE_MAP_W * TILE_MAP_H)
-    collide = bytearray(MAP_W * MAP_H)
     vr = Rng(region['seed'] ^ 0x5EED)
-
     for my in range(MAP_H):
         for mx in range(MAP_W):
             ch = rows[my][mx]
-            nvar = 1 if ch in HOUSE_CHARS \
-                else anim_variants(ALPHABET[ch][0])
-            key = (ch, vr.next() % nvar)
-            names, pal = variants[key]
+            nvar = 1 if ch in HOUSE_CHARS else T.PAINTERS[ALPHABET[ch][0]][1]
+            names, pal = variants[(ch, vr.next() % nvar)]
             for i, name in enumerate(names):
                 tx, ty = mx * 2 + (i & 1), my * 2 + (i >> 1)
                 tilemap[ty * TILE_MAP_W + tx] = g.map_entry(name, pal=pal)
 
-            flags = BLOCK if ch in HOUSE_CHARS else ALPHABET[ch][2]
-            if region.get('safe'):
-                flags &= ~ENC
-            ev = m.events.get((mx, my), 0)
-            if ev:
-                flags |= TRIG
-            collide[my * MAP_W + mx] = flags | (ev << 4)
-
     if len(pool.tiles) > 256:
         raise SystemExit("%s needs %d characters, a page holds 256"
                          % (region['key'], len(pool.tiles)))
-
     sheet = g.Sheet(256)
     for i, c in enumerate(pool.tiles):
         ox, oy = sheet.origin(i)
         for y in range(8):
             for x in range(8):
                 sheet.set(ox + x, oy + y, c[y][x])
+    pal = (g.palette_bin(region['pals'][0]) + g.palette_bin(region['pals'][1])
+           + bytes(32 * 6))
+    return sheet, quadrants(tilemap), pal, b'', 0, len(pool.tiles)
 
-    # A 64x64 tilemap is four 32x32 screens stored consecutively (A-14).
-    quads = []
-    for qy in (0, 32):
-        for qx in (0, 32):
-            for row in range(32):
-                base = (qy + row) * TILE_MAP_W + qx
-                quads.extend(tilemap[base:base + 32])
 
-    anim = b''.join(g.tile_bin(c) for phase in frames for c in phase)
-    return sheet, quads, collide, len(pool.tiles), rows, anim, nanim
+def build_region(region, renders):
+    m = region['build'](Rng(region['seed']))
+    rows = m.rows()
+    land = renders.get('land:' + region['key'])
+    if land is not None:
+        sheet, quads, pal, anim, nanim, ntiles = build_land(region, land)
+    else:
+        sheet, quads, pal, anim, nanim, ntiles = build_painted(region, rows)
+    return sheet, quads, collision(region, m, rows), ntiles, rows, pal, \
+        anim, nanim
 
 
 # ---- the sleepwalkers ---------------------------------------------------
@@ -739,16 +876,18 @@ def generate_world():
     anims = []
     npcs = []
     npc_first = [0]
+    import gen_sprites
+    renders = gen_sprites.load_renders()
     for r in REGIONS:
-        sheet, quads, collide, ntiles, rows, anim, nanim = build_region(r)
+        sheet, quads, collide, ntiles, rows, pal, anim, nanim = \
+            build_region(r, renders)
         key = r['key'].lower()
         anims.append(nanim)
         total += g.write('area_%s.anm' % key, anim if anim else bytes(32))
         total += g.write('area_%s.pic' % key, sheet.to_pic())
         total += g.write('area_%s.map' % key, g.map_bin(quads))
         total += g.write('area_%s.col' % key, bytes(collide))
-        total += g.write('area_%s.pal' % key,
-                         g.palette_bin(r['pals'][0]) + g.palette_bin(r['pals'][1]))
+        total += g.write('area_%s.pal' % key, pal)
         npcs += place_npcs(r, collide)
         npc_first.append(len(npcs))
         walkable = sum(1 for row in rows for ch in row
@@ -830,10 +969,10 @@ def generate_world():
                     % (last['key'].lower(), part))
             f.write("    }\n}\n\n")
 
-        f.write("/* Characters 0..areaAnimTiles-1 of a region's tileset are\n"
-                " * rewritten from areaAnm() every few frames -- see fieldAnimate.\n"
-                " * Zero means the region has no moving water. */\n")
-        f.write("static const u8 areaAnimTiles[AREA_COUNT] = {\n    ")
+        f.write("/* Palette sets in a region's animation loop; areaAnm()\n"
+                " * holds that many 256-byte copies of CGRAM 0-7 -- see\n"
+                " * ppuAnimateLand. Zero means the region stands still. */\n")
+        f.write("static const u8 areaAnimFrames[AREA_COUNT] = {\n    ")
         f.write(", ".join(str(n) for n in anims))
         f.write("\n};\n\n")
         f.write("static const u8 areaMusic[AREA_COUNT] = {\n    ")
@@ -866,7 +1005,7 @@ def generate_world():
 
     print("world: %d bytes across %d regions" % (total, len(REGIONS)))
     for key, ntiles, walk, na in report:
-        print("   %-9s %3d characters, %4d walkable cells, %d animated"
+        print("   %-9s %3d characters, %4d walkable cells, %d frames"
               % (key, ntiles, walk, na))
 
 

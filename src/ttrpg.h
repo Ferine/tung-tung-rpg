@@ -112,8 +112,9 @@ extern u8 txtDirty;
 #define TILE_GAUGE    0xC0
 #define TILE_WIN      0xE0
 
-/* Palettes on the BG1/BG2 shared CGRAM run ($00-$7F, four 16-colour palettes
- * in mode 1 -- A-17). BG1 art gets 0-2, the window layer gets 3.
+/* Palettes on the BG1/BG2 shared CGRAM run ($00-$7F, eight 16-colour
+ * palettes in mode 1 -- A-17). The window layer gets 3; BG1 gets the rest --
+ * a rendered region all seven, a battle backdrop 2 and 4-7.
  *
  * In battle the backdrop only ever names palette 2, so 0 and 1 are free; the
  * battle setup loads two recolours of the window palette there whose only
@@ -372,7 +373,8 @@ void ppuMenuPalette(u8 on);
 void ppuFlash(u8 frames);
 void ppuMosaic(u8 level);
 void ppuShake(u8 frames);
-void ppuAnimateTiles(void);
+void ppuAnimateLand(void);
+void ppuLoadLandPalette(void);
 void ppuFaceService(void);
 void ppuFacePark(void);
 void ppuLoadTitle(void);

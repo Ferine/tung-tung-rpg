@@ -347,7 +347,7 @@ int main(void) {
          * below this point may write a PPU register. */
         setBrightness(fadeLevel);
         textFlush();
-        ppuAnimateTiles();
+        ppuAnimateLand();
         ppuTitleCycle();
         ppuFaceService();
         ppuUpdate();

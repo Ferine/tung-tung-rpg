@@ -54,7 +54,7 @@ def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False,
     (a battle backdrop's file starts at 2)."""
     from PIL import Image
     tiles = read_tiles(pic)
-    pals = read_pal(pal)
+    pals = read_pal(pal) if isinstance(pal, str) else pal
     data = open(mapfile, 'rb').read()
 
     def at(mx, my):
@@ -107,31 +107,28 @@ def render_sheet(pic, pal, out, palno=0, cols=16):
 
 
 def render_anim(key, out):
-    """The four phases of a region's animated block, side by side. The
-    characters are the head of the region's tileset by construction, so the
-    strip is simply the .anm file cut into ANIM_PHASES rows."""
+    """A rendered region under each of its palette sets, two by two. The
+    land animates by palette (gen_world.py), so the .anm file is one copy
+    of CGRAM 0-7 per frame and every frame is the same map recoloured."""
     from PIL import Image
 
-    pal = read_pal(g.asset('area_%s.pal' % key))
-    tiles = read_tiles(g.asset('area_%s.anm' % key))
-    if not tiles:
+    data = open(g.asset('area_%s.anm' % key), 'rb').read()
+    if len(data) < 512:
         return None
-    n = len(tiles) // 4
-    scale = 6
-    img = Image.new('RGB', (n * 8 * scale, 4 * 8 * scale))
-    px = img.load()
-    for p in range(4):
-        for i in range(n):
-            cell = tiles[p * n + i]
-            for y in range(8):
-                for x in range(8):
-                    col = pal[cell[y][x]]
-                    for sy in range(scale):
-                        for sx in range(scale):
-                            px[(i * 8 + x) * scale + sx,
-                               (p * 8 + y) * scale + sy] = col
+    frames = []
+    for f in range(len(data) // 256):
+        chunk = data[f * 256:(f + 1) * 256]
+        frames.append([((w & 31) << 3, ((w >> 5) & 31) << 3,
+                        ((w >> 10) & 31) << 3)
+                       for w in struct.unpack('<128H', chunk)])
+    img = Image.new('RGB', (1024, 512 * ((len(frames) + 1) // 2)))
+    for f, pal in enumerate(frames):
+        tile = render_map(g.asset('area_%s.pic' % key), pal,
+                          g.asset('area_%s.map' % key), 64, 64, out,
+                          quads=True)
+        img.paste(tile, ((f % 2) * 512, (f // 2) * 512))
     img.save(out)
-    return n
+    return len(frames)
 
 
 def render_portraits(out):
@@ -190,11 +187,11 @@ if __name__ == '__main__':
 
     elif what == 'anim':
         for key in ('village', 'fields', 'forest', 'shore',
-                    'fortress', 'hush'):
+                    'salt', 'fortress', 'hush'):
             out = 'preview-anim-%s.png' % key
             n = render_anim(key, out)
             if n:
-                print('%-26s %d characters x 4 phases' % (out, n))
+                print('%-26s %d palette sets' % (out, n))
 
     elif what == 'title':
         import gen_title as t

@@ -1202,6 +1202,19 @@ NPC_KINDS = [
      [232, 234, 232, 234, 232, 234]),
 ]
 
+
+def field_poses():
+    """Every 16x16 field sprite on the resident sheet, as (render key,
+    palette, direction, frame, name, painter). gen_render.py renders the ones
+    render_field.py has a scene for; the painter draws any it does not."""
+    out = [('walk.%s.%d' % (d, f), 'P_TUNG', d, f, WALK_BASE + i * 2,
+            draw_walk) for i, (d, f) in enumerate(WALK_ORDER)]
+    for kind, pal, art, _names in NPC_KINDS:
+        out += [('%s.%s.%d' % (kind.lower(), d, f), pal, d, f, name, painter)
+                for name, painter, d, f in art]
+    return out
+
+
 # type id -> (render key, painter, palette). Order must match the EN_* constants in
 # src/ttrpg.h; enemyArtOffset is indexed by the same number.
 ENEMY_ART = [
@@ -1265,7 +1278,8 @@ def render_digest():
 
 
 def load_renders():
-    """key -> Canvas. Party keys are 'who.pose'; the rest are ENEMY_ART's and
+    """key -> Canvas. Party keys are 'who.pose', field sprites are
+    field_poses()'s 'kind.direction.frame'; the rest are ENEMY_ART's and
     PORTRAIT_ART's -- and 'backdrop:<region>' for gen_battle.py, 'title' for
     gen_title.py."""
     with open(RENDERS) as f:
@@ -1290,6 +1304,26 @@ def load_renders():
                 slot=[[int(ch) for ch in row] for row in body[:32]],
                 idx=[[int(ch, 16) for ch in row] for row in body[32:]])
             i += 1 + n + 32 + 256
+            continue
+        if head[0] == 'land':
+            # 'land:<region>' -> dict(frames=[7 palettes each], chars=
+            # [(slot, 64 dots)], keys={land_key_str: 4 character numbers}).
+            key, nf, nc, nk = head[1], int(head[2]), int(head[3]), \
+                int(head[4])
+            pl = lines[i + 1:i + 1 + nf * 7]
+            pals = [[tuple(int(c[j:j + 2], 16) * 8 for j in (0, 2, 4))
+                     for c in ln.split()[1:]] for ln in pl]
+            at = i + 1 + nf * 7
+            chars = [(int(ln[0]), [int(ch, 16) for ch in ln[1:]])
+                     for ln in lines[at:at + nc]]
+            keys = {}
+            for ln in lines[at + nc:at + nc + nk]:
+                _k, name, *ids = ln.split(' ')
+                keys[name] = [int(v) for v in ids]
+            out['land:' + key] = dict(
+                frames=[pals[f * 7:f * 7 + 7] for f in range(nf)],
+                chars=chars, keys=keys)
+            i = at + nc + nk
             continue
         if head[0] == 'title':
             # 'title' -> dict(frames=[5 palettes each], slot, idx).
@@ -1540,9 +1574,6 @@ PORTRAIT_NAMES = ['TUNG', 'NONNA', 'PATAPIM', 'TRALA',
 def generate_sprites():
     sheet = g.Sheet(STATIC_TILES)
 
-    for i, (d, f) in enumerate(WALK_ORDER):
-        place(sheet, draw_walk(d, f), WALK_BASE + i * 2)
-
     # Pre-rendered: baked by gen_render.py. The draw_* painters stay as the
     # reference each render is compared against.
     renders = load_renders()
@@ -1550,9 +1581,8 @@ def generate_sprites():
         place(sheet, renders[who + '.idle'], idle)
         place(sheet, renders[who + '.' + pose], act)
 
-    for _key, _pal, art, _poses_ in NPC_KINDS:
-        for name, painter, d, f in art:
-            place(sheet, painter(d, f), name)
+    for key, _pal, d, f, name, painter in field_poses():
+        place(sheet, renders[key] if key in renders else painter(d, f), name)
 
     pal = b''.join(g.palette_bin(p) for p in PALS)
     g.write('sprites.pic', sheet.to_pic())
