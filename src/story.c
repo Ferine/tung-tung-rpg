@@ -39,7 +39,40 @@
 static u8 sceneFace(u8 sc, u8 n);
 
 #define F_ELDER    0x01         /* la nonna has spoken */
-#define F_BOSSDONE 0x02         /* this act's guardian is beaten */
+/* Bit 1 belonged to a transient flag in version-2 saves. Keep it reserved.
+ * Each guardian now owns a permanent bit, including after act advances. */
+#define F_PATAPIM  0x04
+#define F_TRALA    0x08
+#define F_LIRILI   0x10
+#define F_BOMBARD  0x20
+#define F_SILENZIO 0x40
+
+void storyRestore(void) {
+    /* Migrate existing saves without changing their on-cartridge layout. */
+    storyFlags &= (u8)~0x02;
+    if (act > ACT_FOREST) storyFlags |= F_PATAPIM;
+    if (act > ACT_SHORE) storyFlags |= F_TRALA;
+    if (act > ACT_SALT) storyFlags |= F_LIRILI;
+    if (act > ACT_FORTRESS) storyFlags |= F_BOMBARD;
+    if (act > ACT_HUSH) storyFlags |= F_SILENZIO;
+}
+
+static u8 guardianFlag(void) {
+    switch (curArea) {
+    case AREA_FOREST: return F_PATAPIM;
+    case AREA_SHORE: return F_TRALA;
+    case AREA_SALT: return F_LIRILI;
+    case AREA_FORTRESS: return F_BOMBARD;
+    case AREA_HUSH: return F_SILENZIO;
+    default: return 0;
+    }
+}
+
+u8 storyGuardianPresent(void) {
+    u8 flag;
+    flag = guardianFlag();
+    return flag && !(storyFlags & flag);
+}
 
 #define SC_NONE       0
 #define SC_OPENING    1
@@ -64,6 +97,40 @@ void storyInit(void) {
     storyFlags = 0;
     scene = SC_NONE;
     step = 0;
+    questInit();
+}
+
+const char *storyObjective(u8 line) {
+    switch (act) {
+    case ACT_VILLAGE:
+        if (!line) return "Speak to La Nonna at the";
+        if (line == 1) return "northwest village house.";
+        return "She can open the east road.";
+    case ACT_FOREST:
+        if (!line) return "Follow the east road to";
+        if (line == 1) return "HUTAN. Face BRR BRR PATAPIM";
+        return "at the central guard post.";
+    case ACT_SHORE:
+        if (!line) return "Leave Hutan east for PANTAI.";
+        if (line == 1) return "Find Tralalero on the shore";
+        return "and break King Ngantuk.";
+    case ACT_SALT:
+        if (!line) return "Go north from Pantai to";
+        if (line == 1) return "PADANG GARAM. Defeat the";
+        return "Sand King and free Lirili.";
+    case ACT_FORTRESS:
+        if (!line) return "Take the northeast salt";
+        if (line == 1) return "exit to LANGIT BESI. Find";
+        return "Bombardiro in the north.";
+    case ACT_HUSH:
+        if (!line) return "Leave the fortress east.";
+        if (line == 1) return "Cross MALAM PANJANG to the";
+        return "north. Face Il Silenzio.";
+    default:
+        if (!line) return "The village can wake again.";
+        if (line == 1) return "The drum has done its work.";
+        return "SAHUR!";
+    }
 }
 
 /* Kept short: the menu footer prints this at column 18 of 32. */
@@ -332,8 +399,12 @@ static const char *sceneLine(u8 sc, u8 n) {
     case SC_GATE:
         switch (n) {
         case 0:
-            return "No. Not yet. There is something here that is not "
-                   "finished, and LA NONNA will hear about it.";
+            if (act == ACT_VILLAGE)
+                return "La Nonna is waiting at the NORTHWEST house. Speak "
+                       "to her before leaving. Your JOURNAL has the next step.";
+            return "The region's guardian still holds this road. Face the "
+                   "guardian first; your JOURNAL names the next step. "
+                   "Sidequests are optional and never lock a story exit.";
         default:
             return 0;
         }
@@ -379,23 +450,19 @@ static void sceneEnd(u8 sc) {
 
     case SC_PATAPIM_W:
         partyRecruit(PC_PATAPIM);
-        act = ACT_SHORE;
-        storyFlags = 0;
+        if (act < ACT_SHORE) act = ACT_SHORE;
         break;
     case SC_TRALA_W:
         partyRecruit(PC_TRALA);
-        act = ACT_SALT;
-        storyFlags = 0;
+        if (act < ACT_SALT) act = ACT_SALT;
         break;
     case SC_LIRILI_W:
         partyRecruit(PC_LIRILI);
-        act = ACT_FORTRESS;
-        storyFlags = 0;
+        if (act < ACT_FORTRESS) act = ACT_FORTRESS;
         break;
     case SC_BOMBARD_W:
         partyRecruit(PC_BOMBARD);
-        act = ACT_HUSH;
-        storyFlags = 0;
+        if (act < ACT_HUSH) act = ACT_HUSH;
         break;
     case SC_SILENZIO_W:
         act = ACT_DONE;
@@ -496,7 +563,8 @@ u8 storyMayLeave(u8 area, u8 ev) {
 /* ---- events ------------------------------------------------------------ */
 
 static void bossHere(void) {
-    if (storyFlags & F_BOSSDONE) {
+    storyRestore();
+    if (storyFlags & guardianFlag()) {
         msgOpen("Whatever was standing here has stopped standing here.");
         return;
     }
@@ -524,7 +592,7 @@ static void bossHere(void) {
 }
 
 void storyBossWon(void) {
-    storyFlags |= F_BOSSDONE;
+    storyFlags |= guardianFlag();
     switch (curArea) {
     case AREA_FOREST:
         storyPlay(SC_PATAPIM_W);
@@ -547,6 +615,7 @@ void storyBossWon(void) {
 }
 
 void storyEvent(u8 ev) {
+    if (questEvent(ev)) return;
     if (ev == EV_BOSS) {
         bossHere();
         return;

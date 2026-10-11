@@ -5,6 +5,7 @@
  * called either from the V-blank window in main() or under forced blank.
  */
 #include "ttrpg.h"
+#include "fieldactormap.h"
 #include "gfxmap.h"
 #include "sprmap.h"
 #include "bgmap.h"
@@ -39,6 +40,7 @@ static u8 waveActive;           /* this region's water moves */
 static u8 menuPalettePending;   /* 0 none, 1 open, 2 close; serviced in V-blank */
 static u8 mode7On;
 static u8 mode7Phase;
+static u8 fieldActorsLoaded;
 
 static void hdmaProgram(u8 *skyTbl, u8 *waveTbl);
 static void battlePaletteLoad(u8 which);
@@ -77,7 +79,7 @@ void ppuInit(void) {
     /* BG1 carries the world, BG2 the windows. BG3 stays off: its four colours
      * would land on CGRAM $00-$1F, which BG1's palette 0 already owns. */
     bgSetGfxPtr(0, VRAM_FIELD_GFX);
-    bgSetMapPtr(0, VRAM_FIELD_MAP, SC_64x64);
+    bgSetMapPtr(0, VRAM_FIELD_MAP, SC_64x32);
     bgSetGfxPtr(1, VRAM_FONT);
     bgSetMapPtr(1, VRAM_TEXT_MAP, SC_32x32);
 
@@ -97,6 +99,7 @@ void ppuInit(void) {
     menuPalettePending = 0;
     mode7On = 0;
     mode7Phase = 0;
+    fieldActorsLoaded = 0;
 }
 
 /* ---- Mode 7 encounter warp ---------------------------------------------
@@ -156,8 +159,8 @@ void ppuMode7Update(void) {
 
 /* Restore everything the Mode 7 byte planes clobbered. Called under forced
  * blank immediately before battleUploadEnemies; the field map, text map and
- * battle windows live above $3FFF and never moved. The field characters still
- * need to be present for the no-reload return path after the fight. */
+ * battle windows live above $3FFF and never moved. The next scene upload
+ * restores the shared BG1 character window. */
 void ppuMode7Restore(void) {
     if (!mode7On)
         return;
@@ -168,7 +171,9 @@ void ppuMode7Restore(void) {
                   (u16)(&sprites_pal_end - &sprites_pal),
                   0, VRAM_OBJ, OBJ_SIZE16_L32);
     dmaCopyVram((u8 *)&font_til, VRAM_FONT, 8192);
-    dmaCopyVram(areaPic(curArea), VRAM_FIELD_GFX, 8192);
+    /* The warp clobbered the shared scene window; battle will refill it. */
+    curBackdrop = 255;
+    fieldActorsLoaded = 0;
     dmaCopyCGram((u8 *)&font_pal, CG_WIN, 32);
 
     setMode(BG_MODE1, 0);
@@ -180,20 +185,18 @@ void ppuMode7Restore(void) {
     mode7On = 0;
 }
 
-/* Called from fieldLoadArea, which is already inside forced blank. Each region
+/* Called from a mode/palette change, already inside forced blank. Each region
  * brings its own backdrop, so a fight starting in the salt flats does not open
  * on the village's sky. */
 void ppuLoadBackdrop(u8 n) {
     if (n == curBackdrop)
         return;
     curBackdrop = n;
-    dmaCopyVram(backdropPic(n), VRAM_BATTLE_GFX, 8192);
+    dmaCopyVram(backdropPic(n), VRAM_BATTLE_GFX, BACKDROP_PIC_BYTES);
     dmaCopyVram(backdropMap(n), VRAM_BATTLE_MAP, 2048);
 }
 
-/* The title screen is a picture, not a font trick, so it arrives the same way
- * a battle backdrop does -- and through the same VRAM window, because a 32x32
- * map with an 8KB tileset is exactly what a backdrop is.
+/* The title uses the same scene window and tilemap as a battle backdrop.
  *
  * curBackdrop is invalidated on the way out: ppuLoadBackdrop skips the
  * transfer when the region asks for the backdrop it thinks is already there,
@@ -211,11 +214,8 @@ static void titlePaletteLoad(u8 step) {
 void ppuLoadTitle(void) {
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
-    /* The rendered title is 512 characters, twice the battle window. BG1
-     * takes the field's window instead -- $3000 up to the text map at $5000
-     * -- which is free here: every way off the title queues a region, and
-     * fieldLoadArea puts the field's characters and map back. The tilemap
-     * stays in the battle window, where ppuSetBattleMode already points. */
+    /* The rendered title's 512 characters fit in the shared 1024-character
+     * window. Every way off the title restores the destination scene. */
     bgSetGfxPtr(0, VRAM_FIELD_GFX);
     dmaCopyVram((u8 *)&title_pic, VRAM_FIELD_GFX, TITLE_PIC_BYTES);
     dmaCopyVram((u8 *)&title_map, VRAM_BATTLE_MAP, 2048);
@@ -250,11 +250,34 @@ void ppuTitleCycle(void) {
 }
 
 
-/* The two modes differ only in which VRAM windows BG1 points at and which pair
- * of OBJ sizes $2101 offers, so switching is register writes, not transfers. */
+/* Field and battle share the scene window. Restore its full contents behind
+ * the state-change fade, with H-DMA suspended throughout the bulk transfer. */
 void ppuSetFieldMode(void) {
-    bgSetGfxPtr(0, VRAM_FIELD_GFX);
-    bgSetMapPtr(0, VRAM_FIELD_MAP, SC_64x64);
+    u8 row;
+
+    ppuHdmaSuspend();
+    REG_INIDISP = 0x80;
+    if (!fieldActorsLoaded) {
+        dmaCopyVram((u8 *)&fieldactors_pic, VRAM_OBJ, 14336);
+        /* Portrait name 448 owns four tiles per row; preserve those bytes
+         * if a guardian's victory dialogue is already uploading its face. */
+        for (row = 0; row < 4; row++)
+            dmaCopyVram((u8 *)&fieldactors_pic + 14464 + (u16)row * 512,
+                        VRAM_OBJ_FACE + 64 + (u16)row * 256, 384);
+        fieldActorsLoaded = 1;
+    }
+    dmaCopyCGram((u8 *)&fieldactors_pal + (u16)curArea * 256, 128, 256);
+    for (row = 0; row < 4; row++)
+        dmaCopyVram((u8 *)&fieldguardians_pic + (u16)curArea * 512 + (u16)row * 128,
+                    VRAM_OBJ + FIELD_GUARDIAN_NAME * 16 + (u16)row * 256, 128);
+    /* BG2.1 can occlude OBJ.2 while BG1.1 windows remain above both. */
+    bgSetGfxPtr(1, VRAM_FIELD_GFX);
+    bgSetMapPtr(1, VRAM_FIELD_MAP, SC_64x32);
+    bgSetGfxPtr(0, VRAM_FONT);
+    bgSetMapPtr(0, VRAM_TEXT_MAP, SC_32x32);
+    bgSetScroll(0, 0, 0);
+    bgSetEnable(0);
+    bgSetEnable(1);
     objSizeMode = OBJ_SIZE16_L32;
     REG_OBSEL = objSizeMode | (VRAM_OBJ >> 13);
 
@@ -268,12 +291,16 @@ void ppuSetFieldMode(void) {
      * window. */
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
+    fieldCamera();
+    fieldStreamInit();
+    curBackdrop = 255;
     ppuLoadLandPalette();
     REG_INIDISP = fadeLevel;
     /* Top-down, so no sky -- just a vignette, and no shimmer: the scroll
      * table would have to be rebuilt from the camera every frame. */
     waveActive = 0;
     hdmaProgram((u8 *)&sky_field_tbl, 0);
+    REG_CGADSUB = 0xA2;
 }
 
 void ppuSetBattleMode(void) {
@@ -283,9 +310,21 @@ void ppuSetBattleMode(void) {
      * CGRAM DMA is only valid in forced blank, V-blank or H-blank. */
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
+    if (fieldActorsLoaded) {
+        dmaCopyVram((u8 *)&sprites_til, VRAM_OBJ, 8192);
+        fieldActorsLoaded = 0;
+    }
+    dmaCopyCGram((u8 *)&sprites_pal, 128, 256);
+
+    ppuLoadBackdrop(areaBackdrop[curArea]);
 
     bgSetGfxPtr(0, VRAM_BATTLE_GFX);
     bgSetMapPtr(0, VRAM_BATTLE_MAP, SC_32x32);
+    bgSetGfxPtr(1, VRAM_FONT);
+    bgSetMapPtr(1, VRAM_TEXT_MAP, SC_32x32);
+    bgSetScroll(1, 0, 0);
+    bgSetEnable(0);
+    bgSetEnable(1);
     objSizeMode = OBJ_SIZE32_L64;
     REG_OBSEL = objSizeMode | (VRAM_OBJ >> 13);
     /* The size pair changes underneath any OBJ still on screen: a portrait
@@ -305,8 +344,9 @@ void ppuSetBattleMode(void) {
     dmaCopyCGram((u8 *)&fontgood_pal, PAL_GOOD * 16, 32);
     battlePaletteLoad(0);
 
-    /* Water for the shore, heat for the salt, drift for the void. */
-    waveActive = (curBackdrop == 2 || curBackdrop == 3 || curBackdrop == 5);
+    /* These are complete paintings, with lighting and edge framing baked
+     * in. Scrolling a scanline would wrap an unrelated edge into the shot. */
+    waveActive = 0;
     wavePhase = 0;
     hdmaProgram(skyTable(curBackdrop),
                 waveActive ? waveTable(0) : (u8 *)0);
@@ -342,6 +382,9 @@ void ppuBattlePalette(u8 which) {
      * legal access period, then restore the raster program for the new frame. */
     ppuHdmaSuspend();
     REG_INIDISP = 0x80;
+    /* Dawn is paired with the village painting, not the last boss's art. */
+    if (which)
+        ppuLoadBackdrop(0);
     battlePaletteLoad(which);
     hdmaProgram(skyTable(curBackdrop),
                 waveActive ? waveTable(wavePhase) : (u8 *)0);
@@ -408,7 +451,7 @@ void ppuFlash(u8 frames) {
  * BG1 is mosaicked -- running it over the window layer turns the text into
  * porridge, and the transition is about the world dissolving, not the UI. */
 void ppuMosaic(u8 level) {
-    REG_MOSAIC = (u8)((level << 4) | (level ? 0x01 : 0x00));
+    REG_MOSAIC = (u8)((level << 4) | (level ? (gameState == ST_FIELD ? 0x02 : 0x01) : 0x00));
 }
 
 void ppuShake(u8 frames) {
@@ -430,19 +473,9 @@ void ppuShake(u8 frames) {
  * field menu is up: palettes 0 and 1 hold its red and green glyphs then.
  */
 void ppuAnimateLand(void) {
-    u8 n = areaAnimFrames[curArea];
-    u8 *pal;
-
-    if (!n || gameState != ST_FIELD || menuActive)
+    if (gameState != ST_FIELD || menuActive)
         return;
-    if ((frameCounter & 7) != 0)      /* eight frames a step */
-        return;
-
-    if (++animPhase >= n)
-        animPhase = 0;
-    pal = areaAnm(curArea) + (u16)animPhase * 256;
-    dmaCopyCGram(pal, CG_FIELD, 96);
-    dmaCopyCGram(pal + 128, CG_BATTLE_HI, 128);
+    fieldAnimate();
 }
 
 /* A region's own palettes, frame 0: 0-2 and 4-7, around the windows' 3. */
@@ -509,10 +542,10 @@ void ppuUpdate(void) {
 
     if (menuPalettePending) {
         if (menuPalettePending == 1) {
-            /* BG1 goes off with the field palettes. A glyph's background is
-             * transparent, so leaving BG1 visible shows recoloured map pixels
+            /* The field BG2 goes off with its palettes. A glyph's background is
+             * transparent, so leaving BG2 visible shows recoloured map pixels
              * through every letter. */
-            bgSetDisable(0);
+            bgSetDisable(1);
             dmaCopyCGram((u8 *)&fontalert_pal, PAL_ALERT * 16, 32);
             dmaCopyCGram((u8 *)&fontgood_pal, PAL_GOOD * 16, 32);
         } else {
@@ -520,7 +553,7 @@ void ppuUpdate(void) {
              * while the menu was up, and half a palette set a frame out of
              * step is a region that flickers when the menu closes. */
             ppuLoadLandPalette();
-            bgSetEnable(0);
+            bgSetEnable(1);
         }
         menuPalettePending = 0;
     }
@@ -546,7 +579,7 @@ void ppuUpdate(void) {
         flashLevel--;
         lastFlash = 1;
     } else if (lastFlash) {
-        REG_CGADSUB = 0xA1;             /* back to subtract for the gradient */
+        REG_CGADSUB = gameState == ST_FIELD ? 0xA2 : 0xA1;
         REG_HDMAEN = waveActive ? 0x06 : 0x02;
         hdmaOn = 1;
         lastFlash = 0;
@@ -576,5 +609,9 @@ void ppuUpdate(void) {
         sx += (shakeTimer & 2) ? 3 : -3;
         sy += (shakeTimer & 4) ? 2 : -2;
     }
-    bgSetScroll(0, (u16)sx, (u16)sy);
+    if (gameState == ST_FIELD) {
+        bgSetScroll(1, (u16)sx, (u16)sy);
+    } else {
+        bgSetScroll(0, (u16)sx, (u16)sy);
+    }
 }

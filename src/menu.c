@@ -19,6 +19,7 @@ u8 menuActive;
 #define M_CHARM    4
 #define M_CHARMWHO 5
 #define M_SHOP     6
+#define M_JOURNAL  7
 
 static u8 mode;
 static u8 cur;                  /* cursor in the current list */
@@ -37,8 +38,9 @@ static u8 openGuard;
 #define CMD_STATUS 1
 #define CMD_CHARM  2
 #define CMD_SAVE   3
-#define CMD_CLOSE  4
-#define CMD_COUNT  5
+#define CMD_JOURNAL 4
+#define CMD_CLOSE  5
+#define CMD_COUNT  6
 
 /* Shop stock. Deliberately short: the shop exists to give gold a job, not to
  * be an inventory game. */
@@ -52,6 +54,7 @@ static const u8 shopCharm[SHOP_CHARMS] = {
 };
 
 void menuOpen(void) {
+    fieldHideActors();
     menuActive = 1;
     ppuMenuPalette(1);
     mode = M_MAIN;
@@ -65,6 +68,7 @@ void menuOpen(void) {
 }
 
 void shopOpen(void) {
+    fieldHideActors();
     menuActive = 1;
     ppuMenuPalette(1);
     mode = M_SHOP;
@@ -129,6 +133,8 @@ static const char *mainLabel(u8 i) {
         return "CHARM";
     case CMD_SAVE:
         return "SAVE";
+    case CMD_JOURNAL:
+        return "QUESTS";
     default:
         return "CLOSE";
     }
@@ -141,6 +147,33 @@ static void drawMain(void) {
     for (i = 0; i < CMD_COUNT; i++)
         textPut(3, (u8)(2 + i * 2), mainLabel(i));
     drawPartyPanel();
+    drawFooter();
+}
+
+static void drawJournal(void) {
+    u8 i, id;
+    winBox(0, 0, 32, 22);
+    textPut(2, 1, "JOURNAL");
+    textNum(25, 1, cur + 1, 1);
+    textPut(26, 1, "/4");
+    if (!cur) {
+        textPut(2, 4, "THE WAKING");
+        textPut(2, 6, "MAIN STORY");
+        for (i = 0; i < 3; i++) textPut(2, (u8)(9 + i * 2), storyObjective(i));
+        textPut(2, 17, "Rest and save at wells.");
+        textPut(2, 18, act == ACT_HUSH ? "Finish errands before boss." : "Sidequests are optional.");
+    } else {
+        id = cur - 1;
+        textPut(2, 4, questName(id));
+        textPut(2, 6, questStatus(id));
+        for (i = 0; i < 3; i++) textPut(2, (u8)(9 + i * 2), questHint(id, i));
+        textPut(2, 15, "PROGRESS");
+        textNum(12, 15, questProgress(id), 1);
+        textPut(14, 15, id == QUEST_KETTLE ? "/ 1" : "/ 3");
+        textPut(2, 17, "REWARD");
+        textPut(2, 18, questReward(id));
+    }
+    textPut(2, 20, "LEFT/RIGHT page   B back");
     drawFooter();
 }
 
@@ -253,6 +286,9 @@ static void drawLayout(void) {
     case M_CHARM:
     case M_CHARMWHO:
         drawCharm();
+        break;
+    case M_JOURNAL:
+        drawJournal();
         break;
     default:
         drawShop();
@@ -435,6 +471,10 @@ void menuUpdate(void) {
                 saveGame();
                 msgOpen("Written down. The night keeps it. La nonna approves.");
                 break;
+            case CMD_JOURNAL:
+                mode = M_JOURNAL;
+                cur = 0;
+                break;
             default:
                 menuClose();
                 return;
@@ -555,6 +595,24 @@ void menuUpdate(void) {
             partyApplyStats();
             audioSfx(SFX_CONFIRM);
             mode = M_CHARM;
+            dirty = 1;
+        }
+        break;
+
+    case M_JOURNAL:
+        if (t & (KEY_LEFT | KEY_UP)) {
+            cur = (u8)((cur + QUEST_COUNT) % (QUEST_COUNT + 1));
+            dirty = 1;
+            audioSfx(SFX_CURSOR);
+        }
+        if (t & (KEY_RIGHT | KEY_DOWN)) {
+            cur = (u8)((cur + 1) % (QUEST_COUNT + 1));
+            dirty = 1;
+            audioSfx(SFX_CURSOR);
+        }
+        if (padTrig & KEY_B) {
+            mode = M_MAIN;
+            cur = CMD_JOURNAL;
             dirty = 1;
         }
         break;

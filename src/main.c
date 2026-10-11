@@ -346,6 +346,7 @@ int main(void) {
          * Brightness, the text-layer DMA, scroll and colour math. Nothing
          * below this point may write a PPU register. */
         setBrightness(fadeLevel);
+        if (gameState == ST_FIELD) fieldStreamFlush();
         textFlush();
         ppuAnimateLand();
         ppuTitleCycle();

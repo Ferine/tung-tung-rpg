@@ -13,15 +13,10 @@
  *   back  BG4.0  BG3.0  OBJ.0  BG4.1  BG3.1  OBJ.1  BG2.0  BG1.0  OBJ.2
  *         BG2.1  BG1.1  OBJ.3   [BG3.1 jumps frontmost when $2105 D3 = 1]
  *
- * which is what fixes the assignment below. Windows must cover the party
- * sprites the way FF's do, and the only band that sits above an OBJ without
- * also demanding BG3's four colours is BG2.1 -- it is directly in front of
- * OBJ.2. So:
- *
- *   BG1 (pvsneslib bg 0)  region map / battle backdrop, tiles priority 0
- *   BG2 (pvsneslib bg 1)  text and windows, tiles priority 1
- *   BG3 (pvsneslib bg 2)  unused (its 4-colour palette overlaps BG1's, A-17)
- *   OBJ                   characters at priority 2, under the windows
+ * Field: BG2 carries priority-0 scenery and priority-1 foreground masks;
+ * BG1 priority-1 windows sit above both scenery and OBJ.2 characters.
+ * Battle/title swap these roles. BG3 stays off. Field OBJ order is sorted
+ * by feet; dialogue portraits use priority 3.
  *
  * ---- VRAM ------------------------------------------------------------------
  *
@@ -30,12 +25,11 @@
  *
  *   $0000-$0FFF  OBJ characters 000-0FF   resident: hero, party, effects
  *   $1000-$1FFF  OBJ characters 100-1FF   streamed: this fight's enemies
- *   $2000-$2FFF  font + window tiles (256)      BG2 character base
- *   $3000-$3FFF  region tileset (256)           BG1 character base, field
- *   $4000-$4FFF  region tilemap 64x64           BG1 tilemap base
- *   $5000-$53FF  text tilemap 32x32             BG2 tilemap base
- *   $5400-$57FF  battle tilemap 32x32           BG1 tilemap base, battle
- *   $6000-$6FFF  battle backdrop tileset (256)  BG1 character base, battle
+ *   $2000-$5FFF  scene characters (1024)    streamed field / battle / title
+ *   $6000-$6FFF  font + window tiles (256)
+ *   $7000-$77FF  field tilemap 64x32; battle uses its first 32x32 screen
+ *   $7800-$7BFF  text tilemap 32x32
+ *   $7C00-$7FFF  unused
  *
  * The second OBJ page is a scratch window. Thirteen enemy designs and six
  * bosses cannot all be resident in 512 characters, so a fight uploads exactly
@@ -56,12 +50,12 @@
 #define VRAM_OBJ_FACE    0x1C00
 #define FACE_OBJ_NAME    448
 #define FACE_OAM         64      /* byte offset: slot 16, clear of battle's */
-#define VRAM_FONT        0x2000
-#define VRAM_FIELD_GFX   0x3000
-#define VRAM_FIELD_MAP   0x4000
-#define VRAM_TEXT_MAP    0x5000
-#define VRAM_BATTLE_MAP  0x5400
-#define VRAM_BATTLE_GFX  0x6000
+#define VRAM_FONT        0x6000
+#define VRAM_FIELD_GFX   0x2000
+#define VRAM_FIELD_MAP   0x7000
+#define VRAM_TEXT_MAP    0x7800
+#define VRAM_BATTLE_MAP  VRAM_FIELD_MAP
+#define VRAM_BATTLE_GFX  VRAM_FIELD_GFX
 
 /* ---- screen ------------------------------------------------------------ */
 
@@ -265,6 +259,12 @@ void fieldInit(void);
 void fieldEnter(void);
 void fieldUpdate(void);
 void fieldDraw(void);
+void fieldHideActors(void);
+void fieldCamera(void);
+void fieldStreamInit(void);
+void fieldStreamPrepare(void);
+void fieldStreamFlush(void);
+void fieldAnimate(void);
 void fieldLoadArea(u8 area, u8 mx, u8 my);
 u8 fieldCollision(u8 mx, u8 my);
 extern u16 heroX, heroY;
@@ -276,6 +276,7 @@ extern u8 pendingArea, pendingX, pendingY;
 void npcInit(u8 area);
 void npcUpdate(void);
 void npcDraw(s16 camX, s16 camY);
+u8 npcHeroSlot(void);
 u8 npcAt(u8 mx, u8 my);
 
 /* ---- story ------------------------------------------------------------- */
@@ -292,6 +293,8 @@ extern u8 act;
 extern u8 storyFlags;
 
 void storyInit(void);
+void storyRestore(void);
+u8 storyGuardianPresent(void);
 u8 storyBusy(void);
 void storyUpdate(void);
 void storyEvent(u8 ev);
@@ -300,6 +303,28 @@ void storyBossWon(void);
 void storyPlay(u8 scene);
 void storyBegin(void);
 const char *storyActName(void);
+const char *storyObjective(u8 line);
+
+/* Optional content has its own saved state, separate from the act gates. */
+#define QUEST_KETTLE 0
+#define QUEST_WELLS  1
+#define QUEST_SHIFT  2
+#define QUEST_COUNT 3
+#define QUEST_UNKNOWN 0
+#define QUEST_ACTIVE  1
+#define QUEST_READY   2
+#define QUEST_DONE    3
+extern u8 questState[QUEST_COUNT], questWells, questPatrols;
+void questInit(void);
+void questInn(void);
+u8 questWell(void);
+u8 questEvent(u8 ev);
+void questBattleWon(void);
+const char *questName(u8 id);
+const char *questStatus(u8 id);
+const char *questHint(u8 id, u8 line);
+const char *questReward(u8 id);
+u8 questProgress(u8 id);
 
 /* ---- menu, shop, save -------------------------------------------------- */
 

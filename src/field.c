@@ -9,10 +9,10 @@
  *
  * ---- regions ---------------------------------------------------------------
  *
- * One region is resident at a time. Changing region is 17KB of tileset, tilemap
+ * One region is active at a time. Changing region fills its visible tile cache
  * and palette under forced blank, which is why it happens on the far side of a
  * fade: VRAM is writable in forced blank or V-blank only (ppu-graphics.md,
- * "Access periods"), and 17KB is some six milliseconds -- four V-blanks.
+ * "Access periods"). Battle borrows the scene window, so returning restores it.
  *
  * ---- events ----------------------------------------------------------------
  *
@@ -24,6 +24,7 @@
 #include "ttrpg.h"
 #include "worldmap.h"
 #include "sprmap.h"
+#include "fieldactormap.h"
 
 #define CELL      16
 #define STEP_PX   2
@@ -64,7 +65,25 @@ static void armEncounter(void) {
 /* ---- region loading ---------------------------------------------------- */
 
 void fieldLoadArea(u8 area, u8 mx, u8 my) {
+    u8 x, y, bx, by;
+    u16 distance, best;
+
+    if (area >= AREA_COUNT) area = AREA_VILLAGE;
     curArea = area;
+    colPtr = areaCol(area);
+    /* Older saves can stand on a cell whose painted footprint was corrected.
+     * Relocate to the nearest ordinary floor, never onto another event. */
+    if (mx >= MAP_W || my >= MAP_H || (fieldCollision(mx, my) & COL_BLOCK)) {
+        best = 65535; bx = SPAWN_X; by = SPAWN_Y;
+        for (y = 0; y < MAP_H; y++) {
+            for (x = 0; x < MAP_W; x++) {
+                if (fieldCollision(x, y) & (COL_BLOCK | COL_TRIG)) continue;
+                distance = (mx > x ? mx - x : x - mx) + (my > y ? my - y : y - my);
+                if (distance < best) { best = distance; bx = x; by = y; }
+            }
+        }
+        mx = bx; my = by;
+    }
     heroX = (u16)mx * CELL;
     heroY = (u16)my * CELL;
     stepLeft = 0;
@@ -77,19 +96,8 @@ void fieldLoadArea(u8 area, u8 mx, u8 my) {
      * fieldUpdate. */
     npcInit(area);
 
-    /* Forced blank: 16KB of tileset and tilemap is far past a V-blank window,
-     * and this is only ever called with the screen already faded out. */
-    /* The channels come off before a bulk transfer that is not in
-     * V-blank; see ppuHdmaSuspend. ppuSetFieldMode turns them back on. */
-    ppuHdmaSuspend();
-    REG_INIDISP = 0x80;
-    dmaCopyVram(areaPic(area), VRAM_FIELD_GFX, 8192);
-    dmaCopyVram(areaMap(area), VRAM_FIELD_MAP, 8192);
-    ppuLoadLandPalette();
-
-    ppuLoadBackdrop(areaBackdrop[area]);
-    REG_INIDISP = fadeLevel;
-
+    /* Field and battle share the 32KB scene window. Field mode fills
+     * the visible tile cache and palette together under forced blank. */
     ppuSetFieldMode();
     audioMusic(areaMusic[area]);
     battleSetRegion(area, areaBackdrop[area]);
@@ -105,7 +113,7 @@ void fieldInit(void) {
     pendingY = SPAWN_Y;
 }
 
-/* Entering ST_FIELD: either coming back from a battle -- nothing to reload --
+/* Entering ST_FIELD: either restoring its painting after a battle,
  * or arriving somewhere new through an exit. */
 void fieldEnter(void) {
     if (pendingArea != 255) {
@@ -149,16 +157,12 @@ static void fieldEvent(u8 ev, u8 mx, u8 my) {
     switch (ev) {
     case EV_INN:
         for (i = 0; i < partyCount; i++) {
-            pcStatus[i] &= (u8)~(STAT_SLEEP | STAT_POISON | STAT_SLOW);
-            if (!(pcStatus[i] & STAT_DEAD)) {
-                pcHP[i] = pcHPMax[i];
-                pcMP[i] = pcMPMax[i];
-            }
+            pcStatus[i] = 0;
+            pcHP[i] = pcHPMax[i];
+            pcMP[i] = pcMPMax[i];
         }
         audioSfx(SFX_HEAL);
-        msgOpen("BALLERINA CAPPUCCINA: \"Sit! Eat! Sleep is not rest, it is "
-                "SURRENDER.\"  She spins once, which is how she counts. "
-                "The party is restored.");
+        questInn();
         break;
 
     case EV_SHOP:
@@ -171,17 +175,16 @@ static void fieldEvent(u8 ev, u8 mx, u8 my) {
          * bar because the last corridor had two fights in it is not
          * difficulty, it is bookkeeping. */
         for (i = 0; i < partyCount; i++) {
-            pcStatus[i] &= (u8)~(STAT_SLEEP | STAT_POISON | STAT_SLOW);
-            if (!(pcStatus[i] & STAT_DEAD)) {
-                pcHP[i] = pcHPMax[i];
-                pcMP[i] = pcMPMax[i];
-            }
+            pcStatus[i] = 0;
+            pcHP[i] = pcHPMax[i];
+            pcMP[i] = pcMPMax[i];
         }
-        saveGame();
         audioSfx(SFX_HEAL);
-        msgOpen("Cold water and a moment to sit. The party is restored. "
-                "The well writes down where you are, because slop forgets "
-                "and wells do not.");
+        if (!questWell())
+            msgOpen("Cold water and a moment to sit. The party is restored. "
+                    "The well writes down where you are, because slop forgets "
+                    "and wells do not.");
+        saveGame();
         break;
 
     default:
@@ -240,7 +243,7 @@ void fieldUpdate(void) {
         animTimer++;
         if (animTimer >= 4) {
             animTimer = 0;
-            walkFrame ^= 1;
+            walkFrame = (walkFrame + 1) & 3;
         }
 
         if (stepLeft == 0) {
@@ -310,10 +313,8 @@ void fieldUpdate(void) {
 
 /* ---- draw -------------------------------------------------------------- */
 
-void fieldDraw(void) {
+void fieldCamera(void) {
     s16 camX, camY;
-    s16 sx, sy;
-    u16 name;
 
     camX = (s16)heroX + 8 - (SCR_W / 2);
     camY = (s16)heroY + 8 - (SCR_H / 2);
@@ -327,17 +328,35 @@ void fieldDraw(void) {
         camY = CAM_MAX_Y;
     scrollX = camX;
     scrollY = camY;
+}
 
-    sx = (s16)heroX - camX;
-    sy = (s16)heroY - camY;
+void fieldDraw(void) {
+    s16 camX, camY, sx, sy;
+    u16 name, obj;
 
-    name = SPR_WALK + (u16)(heroDir * 2 + walkFrame) * 2;
+    fieldCamera();
+    camX = scrollX;
+    camY = scrollY;
+    fieldStreamPrepare();
 
-    /* Priority 2: in front of BG1, behind the window layer on BG2.1 (A-19). */
-    oamSet(0, (u16)sx, (u16)sy, 2, 0, 0, name, OPAL_TUNG);
-    oamSetEx(0, OBJ_SMALL, OBJ_SHOW);
+    sx = (s16)heroX + 8 - FIELD_ANCHOR_X - camX;
+    sy = (s16)heroY + 8 - FIELD_ANCHOR_Y - camY;
+
+    name = fieldWalk[heroDir * 4 + walkFrame];
+
+    /* Priority 2: above the painting, below its foreground and BG1 windows. */
+    npcDraw(camX, camY);
+    obj = (u16)npcHeroSlot() << 2;
+    oamSetEx(obj, OBJ_LARGE, OBJ_SHOW);
+    oamSet(obj, (u16)sx, (u16)sy, 2, 0, 0, name, OPAL_TUNG);
 
     /* Entries 1 upward, and it parks whatever it did not use -- which is
      * what used to be the unconditional park of entry 1 here. */
-    npcDraw(camX, camY);
+}
+
+void fieldHideActors(void) {
+    u8 i;
+    /* Leave slot 16 alone: menu messages may still need a portrait. */
+    for (i = 0; i < 10; i++)
+        oamSetEx((u16)i << 2, OBJ_SMALL, OBJ_HIDE);
 }

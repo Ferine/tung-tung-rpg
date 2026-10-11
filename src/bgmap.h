@@ -4,6 +4,8 @@
 
 #define BACKDROP_COUNT 6
 
+#define BACKDROP_PIC_BYTES 24576
+
 extern char bg_night_pic, bg_night_map, bg_night_pal;
 extern char bg_forest_pic, bg_forest_map, bg_forest_pal;
 extern char bg_shore_pic, bg_shore_map, bg_shore_pal;

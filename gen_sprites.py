@@ -11,11 +11,11 @@ leaves room for its block, and those names are exported to src/sprmap.h.
 
 ---- and why there are only two sizes ---------------------------------------
 
-$2101 offers exactly two OBJ sizes per frame, and the game wants four: 16x16
-walking, 32x32 battlers, 64x64 boss, 8x8 numerals. The field runs
-OBJ_SIZE16_L32 and battle runs OBJ_SIZE32_L64; the numerals and the menu cursor
-are not sprites at all, they are drawn on the BG2 text layer, which costs
-nothing because that layer is already there and already sits above the OBJs.
+$2101 offers exactly two OBJ sizes per frame. Fields use OBJ_SIZE16_L32 with
+32x32 actors from the separate fieldactors.py sheet; battle uses
+OBJ_SIZE32_L64 for 32x32 battlers and 64x64 bosses. Numerals and menu cursors
+are drawn on the text BG. The legacy walking poses below remain in the
+battle/title sheet; field mode replaces that sheet and restores it on return.
 """
 import glob
 import hashlib
@@ -1572,6 +1572,8 @@ PORTRAIT_NAMES = ['TUNG', 'NONNA', 'PATAPIM', 'TRALA',
 
 
 def generate_sprites():
+    import fieldactors
+    fieldactors.generate(PALS)
     sheet = g.Sheet(STATIC_TILES)
 
     # Pre-rendered: baked by gen_render.py. The draw_* painters stay as the

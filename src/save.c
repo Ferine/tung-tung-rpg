@@ -7,16 +7,15 @@
  * being poked field by field.
  *
  * The magic is version-stamped. A save written by an earlier build has a
- * different layout and reading it would produce a party with plausible-looking
- * nonsense in it, which is worse than no save at all; a mismatched stamp is
- * treated as an empty slot.
+ * different layout. Version 2 is migrated explicitly; unknown versions are
+ * treated as empty slots. Version 3 adds optional quest progress.
  */
 #include "ttrpg.h"
 
 #define SAVE_MAGIC0 'T'
 #define SAVE_MAGIC1 'T'
 #define SAVE_MAGIC2 'S'
-#define SAVE_VERSION 2
+#define SAVE_VERSION 3
 
 #define SAVE_SIZE 96
 static u8 blob[SAVE_SIZE];
@@ -48,13 +47,16 @@ static u16 get16(u8 at) {
 #define O_EXP      47           /* 10 */
 #define O_ITEMS    57           /* 8 */
 #define O_OWNED    65           /* 7 */
-#define O_SUM      72           /* 1 */
+#define O_QUEST    72           /* 3 */
+#define O_WELLS    75
+#define O_PATROLS  76
+#define O_SUM      77           /* 1; version 2 used byte 72 */
 
-static u8 checksum(void) {
+static u8 checksum(u8 end) {
     u8 i, s;
 
     s = 0x5A;
-    for (i = 0; i < O_SUM; i++)
+    for (i = 0; i < end; i++)
         s += blob[i];
     return s;
 }
@@ -91,17 +93,22 @@ void saveGame(void) {
     for (i = 0; i < CHARM_COUNT; i++)
         blob[O_OWNED + i] = charmOwned[i];
 
-    blob[O_SUM] = checksum();
+    for (i = 0; i < QUEST_COUNT; i++) blob[O_QUEST + i] = questState[i];
+    blob[O_WELLS] = questWells;
+    blob[O_PATROLS] = questPatrols;
+    blob[O_SUM] = checksum(O_SUM);
     consoleCopySram(blob, SAVE_SIZE);
 }
 
 u8 saveExists(void) {
+    u8 sumAt;
     consoleLoadSram(blob, SAVE_SIZE);
+    sumAt = blob[3] == 2 ? 72 : O_SUM;
     return (blob[O_MAGIC + 0] == SAVE_MAGIC0
             && blob[O_MAGIC + 1] == SAVE_MAGIC1
             && blob[O_MAGIC + 2] == SAVE_MAGIC2
-            && blob[O_MAGIC + 3] == SAVE_VERSION
-            && blob[O_SUM] == checksum()) ? 1 : 0;
+            && (blob[O_MAGIC + 3] == SAVE_VERSION || blob[O_MAGIC + 3] == 2)
+            && blob[sumAt] == checksum(sumAt)) ? 1 : 0;
 }
 
 u8 loadGame(void) {
@@ -110,8 +117,17 @@ u8 loadGame(void) {
     if (!saveExists())
         return 0;
 
+    questInit();
+    if (blob[3] == SAVE_VERSION) {
+        for (i = 0; i < QUEST_COUNT; i++)
+            questState[i] = blob[O_QUEST + i] <= QUEST_DONE ? blob[O_QUEST + i] : QUEST_UNKNOWN;
+        questWells = blob[O_WELLS] & 7;
+        questPatrols = blob[O_PATROLS] > 3 ? 3 : blob[O_PATROLS];
+    }
+
     act = blob[O_ACT];
     storyFlags = blob[O_FLAGS];
+    storyRestore();
     partyCount = blob[O_COUNT];
     gold = get16(O_GOLD);
 

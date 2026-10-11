@@ -75,9 +75,9 @@ static const u8 enSlotY[ENEMY_MAX] = {40, 20, 96, 74, 128, 122};
 
 /* ---- enemy data -------------------------------------------------------- */
 
-/* Bosses are tuned against the level the road actually delivers by the time
- * the player reaches them -- roughly 6, 10, 14, 16, 22 -- not against a
- * theoretical maximum. Il Silenzio's two shapes come to 4600 between them,
+/* test_campaign.py exercises these fights from level one with starting
+ * supplies, normal encounters and no sidequest rewards. The route matters
+ * more than a theoretical maximum. Il Silenzio's shapes total 4600 HP,
  * which is the largest fight in the game by some way and still resolves
  * inside a couple of minutes; at 6600 it was ten, which is not tension, it
  * is a queue. */
@@ -1494,6 +1494,11 @@ void battleUpdate(void) {
             requestState(ST_FIELD);
             storyBossWon();
         } else {
+            /* State changes fade for several frames: count this victory once. */
+            if (execPhase == 21) {
+                questBattleWon();
+                execPhase = 22;
+            }
             requestState(ST_FIELD);
         }
         break;

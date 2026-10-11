@@ -4,6 +4,28 @@ All notable public releases are documented here.
 
 ## [Unreleased]
 
+- Three persistent sidequests: A Hot Breakfast, Water Remembers and The Last
+  Shift. The QUESTS menu tracks the main objective, optional objectives,
+  progress and rewards. Quest rewards cannot be claimed twice.
+- Version-3 saves store quest progress and migrate version-2 saves. Wells
+  autosave quest changes and fully restore fallen companions; inns revive too.
+- Restored ordinary fortress encounters. Added a complete new-game campaign
+  playthrough without quest rewards, plus sidequest and save regressions in CI.
+
+- Prerendered field and battle environments. Fields stream all 4096 tiles
+  through a 34×30 cache, preserving spatial detail at 60 Hz. Authored depth
+  masks, character sorting and local tile animation integrate the scenery.
+- Larger raymarched field characters, four-phase walking, contact shadows
+  and regional lighting. Visible guardian figures share the character depth
+  sort and disappear permanently after defeat. Field/battle transitions
+  preserve dialogue portraits; partially visible actors clip at screen edges.
+- Reviewed collision geometry, including fortress floors and bridges. Legacy
+  saves on corrected obstacles relocate to nearby safe ground.
+- Guardian completion persists across acts and saves. Revisiting an earlier
+  guardian no longer rewinds progress or resets a companion's experience.
+- ROM build and emulator regressions in CI: field pixels, scrolling timing,
+  depth, animation, save/load, backtracking, recruitment and the final boss.
+
 The soundtrack, rewritten. The previous one was described by the person who
 played it as "literally earsplitting", and measurement agreed for reasons the
 loudness figure never showed.

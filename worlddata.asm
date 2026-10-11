@@ -5,62 +5,286 @@
 ; from data.asm would have its labels linked twice.
 .include "hdr.asm"
 ;
-; One section per region: a tileset and a tilemap are 8KB each
-; and a WLA section cannot straddle a bank boundary in 32KB
-; LoROM, so they are kept apart region by region.
+; The painting is split into 16KB strips with separate map/metadata:
+; every strip and its DMA sources must fit within a LoROM bank and not
+; straddle a bank boundary.
+
+.section ".rodata_village_pic" superfree
+area_village_pic: .incbin "assets/area_village.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_village_pic1" superfree
+area_village_pic1: .incbin "assets/area_village.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_village_pic2" superfree
+area_village_pic2: .incbin "assets/area_village.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_village_pic3" superfree
+area_village_pic3: .incbin "assets/area_village.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_village_pic4" superfree
+area_village_pic4: .incbin "assets/area_village.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_village_pic5" superfree
+area_village_pic5: .incbin "assets/area_village.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_village_pic6" superfree
+area_village_pic6: .incbin "assets/area_village.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_village_pic7" superfree
+area_village_pic7: .incbin "assets/area_village.pic" skip 114688 read 16384
+.ends
 
 .section ".rodata_village" superfree
-area_village_pic: .incbin "assets/area_village.pic"
 area_village_map: .incbin "assets/area_village.map"
 area_village_col: .incbin "assets/area_village.col"
 area_village_pal: .incbin "assets/area_village.pal"
 area_village_anm: .incbin "assets/area_village.anm"
+area_village_fx: .incbin "assets/area_village.fx"
+.ends
+
+.section ".rodata_fields_pic" superfree
+area_fields_pic: .incbin "assets/area_fields.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_fields_pic1" superfree
+area_fields_pic1: .incbin "assets/area_fields.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_fields_pic2" superfree
+area_fields_pic2: .incbin "assets/area_fields.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_fields_pic3" superfree
+area_fields_pic3: .incbin "assets/area_fields.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_fields_pic4" superfree
+area_fields_pic4: .incbin "assets/area_fields.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_fields_pic5" superfree
+area_fields_pic5: .incbin "assets/area_fields.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_fields_pic6" superfree
+area_fields_pic6: .incbin "assets/area_fields.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_fields_pic7" superfree
+area_fields_pic7: .incbin "assets/area_fields.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_fields" superfree
-area_fields_pic: .incbin "assets/area_fields.pic"
 area_fields_map: .incbin "assets/area_fields.map"
 area_fields_col: .incbin "assets/area_fields.col"
 area_fields_pal: .incbin "assets/area_fields.pal"
 area_fields_anm: .incbin "assets/area_fields.anm"
+area_fields_fx: .incbin "assets/area_fields.fx"
+.ends
+
+.section ".rodata_forest_pic" superfree
+area_forest_pic: .incbin "assets/area_forest.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_forest_pic1" superfree
+area_forest_pic1: .incbin "assets/area_forest.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_forest_pic2" superfree
+area_forest_pic2: .incbin "assets/area_forest.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_forest_pic3" superfree
+area_forest_pic3: .incbin "assets/area_forest.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_forest_pic4" superfree
+area_forest_pic4: .incbin "assets/area_forest.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_forest_pic5" superfree
+area_forest_pic5: .incbin "assets/area_forest.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_forest_pic6" superfree
+area_forest_pic6: .incbin "assets/area_forest.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_forest_pic7" superfree
+area_forest_pic7: .incbin "assets/area_forest.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_forest" superfree
-area_forest_pic: .incbin "assets/area_forest.pic"
 area_forest_map: .incbin "assets/area_forest.map"
 area_forest_col: .incbin "assets/area_forest.col"
 area_forest_pal: .incbin "assets/area_forest.pal"
 area_forest_anm: .incbin "assets/area_forest.anm"
+area_forest_fx: .incbin "assets/area_forest.fx"
+.ends
+
+.section ".rodata_shore_pic" superfree
+area_shore_pic: .incbin "assets/area_shore.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_shore_pic1" superfree
+area_shore_pic1: .incbin "assets/area_shore.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_shore_pic2" superfree
+area_shore_pic2: .incbin "assets/area_shore.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_shore_pic3" superfree
+area_shore_pic3: .incbin "assets/area_shore.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_shore_pic4" superfree
+area_shore_pic4: .incbin "assets/area_shore.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_shore_pic5" superfree
+area_shore_pic5: .incbin "assets/area_shore.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_shore_pic6" superfree
+area_shore_pic6: .incbin "assets/area_shore.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_shore_pic7" superfree
+area_shore_pic7: .incbin "assets/area_shore.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_shore" superfree
-area_shore_pic: .incbin "assets/area_shore.pic"
 area_shore_map: .incbin "assets/area_shore.map"
 area_shore_col: .incbin "assets/area_shore.col"
 area_shore_pal: .incbin "assets/area_shore.pal"
 area_shore_anm: .incbin "assets/area_shore.anm"
+area_shore_fx: .incbin "assets/area_shore.fx"
+.ends
+
+.section ".rodata_salt_pic" superfree
+area_salt_pic: .incbin "assets/area_salt.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_salt_pic1" superfree
+area_salt_pic1: .incbin "assets/area_salt.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_salt_pic2" superfree
+area_salt_pic2: .incbin "assets/area_salt.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_salt_pic3" superfree
+area_salt_pic3: .incbin "assets/area_salt.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_salt_pic4" superfree
+area_salt_pic4: .incbin "assets/area_salt.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_salt_pic5" superfree
+area_salt_pic5: .incbin "assets/area_salt.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_salt_pic6" superfree
+area_salt_pic6: .incbin "assets/area_salt.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_salt_pic7" superfree
+area_salt_pic7: .incbin "assets/area_salt.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_salt" superfree
-area_salt_pic: .incbin "assets/area_salt.pic"
 area_salt_map: .incbin "assets/area_salt.map"
 area_salt_col: .incbin "assets/area_salt.col"
 area_salt_pal: .incbin "assets/area_salt.pal"
 area_salt_anm: .incbin "assets/area_salt.anm"
+area_salt_fx: .incbin "assets/area_salt.fx"
+.ends
+
+.section ".rodata_fortress_pic" superfree
+area_fortress_pic: .incbin "assets/area_fortress.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_fortress_pic1" superfree
+area_fortress_pic1: .incbin "assets/area_fortress.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_fortress_pic2" superfree
+area_fortress_pic2: .incbin "assets/area_fortress.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_fortress_pic3" superfree
+area_fortress_pic3: .incbin "assets/area_fortress.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_fortress_pic4" superfree
+area_fortress_pic4: .incbin "assets/area_fortress.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_fortress_pic5" superfree
+area_fortress_pic5: .incbin "assets/area_fortress.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_fortress_pic6" superfree
+area_fortress_pic6: .incbin "assets/area_fortress.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_fortress_pic7" superfree
+area_fortress_pic7: .incbin "assets/area_fortress.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_fortress" superfree
-area_fortress_pic: .incbin "assets/area_fortress.pic"
 area_fortress_map: .incbin "assets/area_fortress.map"
 area_fortress_col: .incbin "assets/area_fortress.col"
 area_fortress_pal: .incbin "assets/area_fortress.pal"
 area_fortress_anm: .incbin "assets/area_fortress.anm"
+area_fortress_fx: .incbin "assets/area_fortress.fx"
+.ends
+
+.section ".rodata_hush_pic" superfree
+area_hush_pic: .incbin "assets/area_hush.pic" skip 0 read 16384
+.ends
+
+.section ".rodata_hush_pic1" superfree
+area_hush_pic1: .incbin "assets/area_hush.pic" skip 16384 read 16384
+.ends
+
+.section ".rodata_hush_pic2" superfree
+area_hush_pic2: .incbin "assets/area_hush.pic" skip 32768 read 16384
+.ends
+
+.section ".rodata_hush_pic3" superfree
+area_hush_pic3: .incbin "assets/area_hush.pic" skip 49152 read 16384
+.ends
+
+.section ".rodata_hush_pic4" superfree
+area_hush_pic4: .incbin "assets/area_hush.pic" skip 65536 read 16384
+.ends
+
+.section ".rodata_hush_pic5" superfree
+area_hush_pic5: .incbin "assets/area_hush.pic" skip 81920 read 16384
+.ends
+
+.section ".rodata_hush_pic6" superfree
+area_hush_pic6: .incbin "assets/area_hush.pic" skip 98304 read 16384
+.ends
+
+.section ".rodata_hush_pic7" superfree
+area_hush_pic7: .incbin "assets/area_hush.pic" skip 114688 read 16384
 .ends
 
 .section ".rodata_hush" superfree
-area_hush_pic: .incbin "assets/area_hush.pic"
 area_hush_map: .incbin "assets/area_hush.map"
 area_hush_col: .incbin "assets/area_hush.col"
 area_hush_pal: .incbin "assets/area_hush.pal"
 area_hush_anm: .incbin "assets/area_hush.anm"
+area_hush_fx: .incbin "assets/area_hush.fx"
 .ends

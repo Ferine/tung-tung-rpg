@@ -13,7 +13,7 @@ WAKING out of people. Took it, like a wallet.
 </p>
 
 <p align="center">
-  <img src="media/battle.png" width="384" alt="An active-time battle: five-character party, gauges, command window">
+  <img src="media/prerender-battle.png" width="384" alt="An active-time battle: five-character party, gauges, command window">
   <img src="media/dialogue.png" width="384" alt="LA NONNA speaking, her portrait framed above the message box">
 </p>
 
@@ -66,21 +66,29 @@ where nothing has grown since before the Sleep, **Langit Besi** a fortress held
 up by nothing anybody can point at, and **Malam Panjang** — not a place so much
 as a held breath.
 
-Six of the seven have something moving in them: water crests that travel, a
-lantern that breathes, mushroom caps that take turns being lit, forge mouths
-that swell, and the tear in Malam Panjang pulling itself open. The salt flat has
-nothing that moves, which is the point of the salt flat.
+The fields are complete prerendered backgrounds inspired by Super Mario RPG
+and Final Fantasy VII: sculpted foliage, modeled buildings, warm lantern
+pools and baked shadows. Each 512×512 scene scrolls beneath the characters;
+an authored collision grid, doors, exits and encounters drive play. The
+renderer streams every field tile without dictionary substitution. Foreground
+roofs and foliage hide characters as they pass behind them; local water,
+lantern, foliage and rift animations bring the paintings to life. The six
+battle stages use the same art direction.
+
+Larger modeled characters have contact shadows, four-phase walking and
+lighting matched to each region. Guardians now appear on the field at their
+encounter locations and disappear after their defeat.
+
+<img src="media/prerender-walk.gif" width="384" alt="Tung walking through the prerendered east road with the larger shaded field sprite">
 
 | | | | |
 |:---:|:---:|:---:|:---:|
-| <img src="media/region-0-village.png" width="200" alt="Kampung Sahur"> | <img src="media/region-1-fields.png" width="200" alt="The east road"> | <img src="media/region-2-forest.png" width="200" alt="Hutan"> | <img src="media/region-3-shore.png" width="200" alt="Pantai"> |
+| <img src="media/prerender-village.png" width="200" alt="Kampung Sahur"> | <img src="media/prerender-fields.png" width="200" alt="The east road"> | <img src="media/prerender-forest.png" width="200" alt="Hutan"> | <img src="media/prerender-shore.png" width="200" alt="Pantai"> |
 | **Kampung Sahur** | **the east road** | **Hutan** | **Pantai** |
-| <img src="media/region-4-salt.png" width="200" alt="Padang Garam"> | <img src="media/region-5-fortress.png" width="200" alt="Langit Besi"> | <img src="media/region-6-hush.png" width="200" alt="Malam Panjang"> | |
+| <img src="media/prerender-salt.png" width="200" alt="Padang Garam"> | <img src="media/prerender-fortress.png" width="200" alt="Langit Besi"> | <img src="media/prerender-hush.png" width="200" alt="Malam Panjang"> | |
 | **Padang Garam** | **Langit Besi** | **Malam Panjang** | |
 
-Each region gets its own sky, drawn a scanline at a time — a smooth gradient
-rather than dithered bands, a vignette over the field, and water that shimmers
-under it. The title screen is a picture: a village under a moon, with the logo's
+The field and battle lighting is baked into the scenery. The title screen is a picture: a village under a moon, with the logo's
 shine and the star field animated without redrawing a single tile. Encounters
 drop through a 256-colour Mode 7 night vortex: the field rotates and rushes at
 the camera before the existing mosaic wipe closes over it.
@@ -102,10 +110,6 @@ has ever had.
   <img src="media/sleepwalkers.png" width="384" alt="Two sleepwalkers and the five-legged cat, drifting through the village">
 </p>
 
-<p align="center">
-  <img src="media/shore-water.gif" width="384" alt="The sea at Pantai, crests travelling and the surface shimmering">
-  <img src="media/village-walk.gif" width="384" alt="Walking through Kampung Sahur at night">
-</p>
 
 ## Battles
 
@@ -148,10 +152,28 @@ There is no talk button — walk into somebody, or into a door, and it happens.
 </p>
 
 Talk to LA NONNA before the village will let you east. After that the road is
-gated one act at a time. Wells restore the party *and* save; there is one before
+gated one act at a time. **START → QUESTS** opens the journal: the first page
+tracks the main objective, and left/right switches between optional quests.
+Wells revive fallen companions, restore HP/MP, clear ailments *and* save; there is one before
 each guardian, because arriving at a boss on a third of a bar is bookkeeping,
 not difficulty. The shop in the village sells supplies and charms. The save is
 battery-backed, so CONTINUE picks up where you left it.
+
+Three optional sidequests run alongside the story. Their progress, carried
+quest objects and rewards survive saving; none is needed to unlock an act.
+
+| Quest | Start and objective | Reward |
+|---|---|---|
+| **A Hot Breakfast** | Visit Cappuccina's village inn, recover the kettle at the campfire south of the east road, and return it. Finding it before the request also works. | CINGHIA charm + 100 gold |
+| **Water Remembers** | After recruiting Patapim, revisit the Hutan well. Restore the wells in Hutan, Pantai and Padang Garam, then return to Hutan. | CORTECCIA charm + 300 gold |
+| **The Last Shift** | Read the ledger at the Langit Besi well. Win three ordinary fortress battles and return. Escapes and guardians do not count. | MEZZOGIORNO charm + 400 gold |
+
+Rewards can be claimed once. A charm you already own pays its shop price
+instead. Earlier regions remain accessible throughout the story; finish any
+remaining errands before facing Il Silenzio and the ending. Existing version-2
+saves load with the new quests unstarted; subsequent saves use version 3.
+
+<img src="media/quest-journal.png" width="384" alt="The quest journal tracking Patapim's three wells and their reward">
 
 **SLEEP is the mechanic to actually think about.** The Sleepers inflict it, a
 sleeping character's gauge stops, and Tung's **SAHUR!** clears it from the whole
@@ -199,9 +221,11 @@ That is the whole build — the generated graphics and tracker modules are kept 
 the repository, so nothing has to be downloaded first. The ROM is a build
 artifact and is deliberately not stored here.
 
-Everything on screen is generated by the Python in this directory: no art
-program, no tracker, no sprite sheets drawn by hand. `gen_assets.py` is the
-whole pipeline. Which is fitting, because so is everybody in it.
+Field and battle source paintings live in `assets/prerendered/`.
+`gen_prerender.py` converts them into a checked-in bake; normal builds and
+`gen_assets.py` use that bake without image-processing dependencies. The
+characters, portraits and title still come from the procedural 3D renderer.
+See `assets/prerendered/prompts.json` for the image-generation prompts.
 
 **[`TECHNICAL.md`](TECHNICAL.md)** is the hardware side — the layer and VRAM
 layout, the raster effects, how the art and the orchestra are generated, the

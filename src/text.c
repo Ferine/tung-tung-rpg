@@ -1,16 +1,16 @@
 /*
  * TUNG TUNG SAHUR -- the text and window layer.
  *
- * BG2 is a 32x32 tilemap at VRAM $5000 whose characters are the font sheet at
- * $2000. We keep the whole map shadowed in RAM and transfer it whole when
+ * The text layer is a 32x32 tilemap at VRAM $7800, using the font at
+ * $6000. It is BG1 on fields and BG2 in battle/title modes. We keep the whole map shadowed in RAM and transfer it whole when
  * something changed, rather than poking VRAM per glyph: VRAM is writable only
  * in forced blank or V-blank (ppu-graphics.md, "Access periods"), and 2KB is
  * one ~0.8ms DMA against a ~2.4ms V-blank at 224 lines -- comfortably inside,
  * and it means drawing code can run anywhere in the frame.
  *
  * Every entry carries the priority bit. In the 3-screen priority order (A-19)
- * BG2.1 sits directly in front of OBJ.2, which is where the party and enemy
- * sprites are, so a window drawn here covers them the way FF's do.
+ * BG1.1 on fields and BG2.1 in battles cover OBJ.2. Field windows also
+ * cover the painting's BG2.1 foreground masks.
  */
 #include "ttrpg.h"
 #include "gfxmap.h"

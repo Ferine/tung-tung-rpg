@@ -215,6 +215,10 @@ void partyInit(void) {
 void partyRecruit(u8 who) {
     u8 i, best;
 
+    /* Replayed scenes must not reset an existing companion's experience. */
+    if (who < partyCount || who >= PARTY_MAX)
+        return;
+
     best = 1;
     for (i = 0; i < partyCount; i++)
         if (pcLevel[i] > best)

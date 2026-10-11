@@ -26,6 +26,10 @@ def read_pal(path):
 def read_tiles(path):
     """Undo the 4bpp plane packing of ppu-graphics.md A-12."""
     data = open(path, 'rb').read()
+    return decode_tiles(data)
+
+
+def decode_tiles(data):
     tiles = []
     for t in range(len(data) // 32):
         base = t * 32
@@ -54,6 +58,9 @@ def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False,
     (a battle backdrop's file starts at 2)."""
     from PIL import Image
     tiles = read_tiles(pic)
+    streamed = len(tiles) == 4096 and w == h == 64
+    if streamed:
+        quads = False
     pals = read_pal(pal) if isinstance(pal, str) else pal
     data = open(mapfile, 'rb').read()
 
@@ -68,6 +75,8 @@ def render_map(pic, pal, mapfile, w, h, out, backdrop=(0, 0, 0), quads=False,
         for mx in range(w):
             e = struct.unpack_from('<H', data, at(mx, my))[0]
             name = e & 0x3FF
+            if streamed:
+                name = my * w + mx
             palno = (e >> 10) & 7
             hf = (e >> 14) & 1
             vf = (e >> 15) & 1
@@ -106,11 +115,60 @@ def render_sheet(pic, pal, out, palno=0, cols=16):
     return img
 
 
+def render_fieldactors(out, area=0):
+    """Unpack every larger pose and guardian using the chosen region's light."""
+    from PIL import Image, ImageDraw
+    import fieldactors as f
+    import gen_sprites as s
+    assert 0 <= area < 7
+    tiles = read_tiles(g.asset('fieldactors.pic'))
+    guardians = read_tiles(g.asset('fieldguardians.pic'))
+    palette = read_pal(g.asset('fieldactors.pal'))[area*128:(area+1)*128]
+    poses = [(key, getattr(s,pal), [tiles[f.name(i)+y*16+x] for y in range(4) for x in range(4)])
+             for i,(key,pal,*_) in enumerate(f.poses())]
+    poses += [(key.removeprefix('boss_'), getattr(s,pal), guardians[a*16:(a+1)*16])
+              for a,(key,pal) in enumerate(f.GUARDIANS,2)]
+    img = Image.new('RGB',(5*144,7*116),(26,30,40))
+    draw = ImageDraw.Draw(img)
+    for i,(key,pal,cells) in enumerate(poses):
+        ox,oy = i%5*144+24,i//5*116
+        for y in range(32):
+            for x in range(32):
+                c = cells[y//8*4+x//8][y%8][x%8]
+                if c:
+                    draw.rectangle((ox+x*3,oy+y*3,ox+x*3+2,oy+y*3+2),fill=palette[pal*16+c])
+        draw.text((i%5*144+4,oy+98),key,fill=(224,224,232))
+    img.save(out)
+    return img
+
+
 def render_anim(key, out):
     """A rendered region under each of its palette sets, two by two. The
     land animates by palette (gen_world.py), so the .anm file is one copy
     of CGRAM 0-7 per frame and every frame is the same map recoloured."""
     from PIL import Image
+    from pathlib import Path
+
+    fx = Path(g.asset('area_%s.fx' % key))
+    if fx.exists() and fx.stat().st_size:
+        base = render_map(g.asset('area_%s.pic' % key), g.asset('area_%s.pal' % key),
+                          g.asset('area_%s.map' % key), 64, 64, out)
+        pals = read_pal(g.asset('area_%s.pal' % key))
+        attrs = struct.unpack('<4096H', Path(g.asset('area_%s.map' % key)).read_bytes())
+        data = fx.read_bytes()
+        sheet = Image.new('RGB', (1024,1024))
+        for phase in range(4):
+            frame = base.copy(); pixels = frame.load()
+            for offset in range(0,len(data),132):
+                x,y = data[offset:offset+2]
+                palno = (attrs[y*64+x] >> 10) & 7
+                tile = decode_tiles(data[offset+4+phase*32:offset+36+phase*32])[0]
+                for py in range(8):
+                    for px in range(8):
+                        pixels[x*8+px,y*8+py] = pals[palno*16+tile[py][px]]
+            sheet.paste(frame, ((phase%2)*512,(phase//2)*512))
+        sheet.save(out)
+        return sheet
 
     data = open(g.asset('area_%s.anm' % key), 'rb').read()
     if len(data) < 512:
@@ -185,6 +243,11 @@ if __name__ == '__main__':
                      'preview-enemies.png', palno=palno)
         print('preview-enemies.png')
 
+    elif what == 'actors':
+        area = int(sys.argv[2]) if len(sys.argv)>2 else 0
+        render_fieldactors('preview-actors.png',area)
+        print('preview-actors.png')
+
     elif what == 'anim':
         for key in ('village', 'fields', 'forest', 'shore',
                     'salt', 'fortress', 'hush'):
@@ -214,4 +277,4 @@ if __name__ == '__main__':
         print('preview-portraits.png  ' + ' '.join(names))
 
     else:
-        print('usage: preview.py [world|battle|sprites|anim|portraits|title]')
+        print('usage: preview.py [world|battle|sprites|actors [area 0-6]|anim|portraits|title]')

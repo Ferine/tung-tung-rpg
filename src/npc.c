@@ -31,12 +31,13 @@
 #include "ttrpg.h"
 #include "worldmap.h"
 #include "sprmap.h"
+#include "fieldactormap.h"
 
 #define CELL        16
 #define STEP_PX     2
 #define STEP_FRAMES (CELL / STEP_PX)
 
-#define NPC_MAX     8           /* per region; OAM entries 1..8 */
+#define NPC_MAX     8           /* plus the hero and one guardian */
 
 #define DIR_DOWN    0
 #define DIR_UP      1
@@ -64,6 +65,8 @@ static u8 npcAnim[NPC_MAX];
 static u8 npcWait[NPC_MAX];
 static u8 npcObjUsed;
 static u16 npcSeed;
+static u8 drawOrder[NPC_MAX + 2], heroRank;
+static u16 drawDepth[NPC_MAX + 2];
 
 static u8 npcRand(void) {
     npcSeed = (u16)(npcSeed * 25173 + 13849);
@@ -78,11 +81,13 @@ void npcInit(u8 area) {
     if (n > NPC_MAX)
         n = NPC_MAX;
     npcN = n;
+    for (i = 0; i <= n + 1; i++) drawOrder[i] = i;
+    heroRank = 0;
 
     /* Park everything on the first draw: the region just changed and the
      * count with it, and an OBJ left at a stale position still costs a slot
      * against the 32-per-line limit even where nothing can see it. */
-    npcObjUsed = NPC_MAX;
+    npcObjUsed = NPC_MAX + 2;
     npcSeed = (u16)(0x2A6D + area * 0x3B9D);
 
     for (i = 0; i < n; i++) {
@@ -220,20 +225,58 @@ void npcUpdate(void) {
     }
 }
 
+u8 npcHeroSlot(void) {
+    return heroRank;
+}
+
 void npcDraw(s16 camX, s16 camY) {
-    u8 i, obj, pose, flip;
+    u8 i, j, obj, pose, flip, key, previous, guardian, present;
     s16 sx, sy;
     u16 name;
 
-    obj = 1;                            /* entry 0 is the hero */
-    for (i = 0; i < npcN; i++) {
-        sx = (s16)npcPX[i] - camX;
-        sy = (s16)npcPY[i] - camY;
+    /* Insertion-sort the previous frame's order. Actors move two pixels at
+     * a time, so it is usually already sorted: linear work, including Tung. */
+    guardian = npcN + 1;
+    present = storyGuardianPresent();
+    drawDepth[guardian] = (u16)areaGuardianY[curArea] * CELL;
+    drawDepth[0] = heroY;
+    for (i = 0; i < npcN; i++) drawDepth[i + 1] = npcPY[i];
+    for (i = 1; i <= guardian; i++) {
+        key = drawOrder[i];
+        j = i;
+        while (j) {
+            previous = drawOrder[j - 1];
+            if (drawDepth[previous] > drawDepth[key] ||
+                (drawDepth[previous] == drawDepth[key] && previous < key)) break;
+            drawOrder[j] = previous;
+            j--;
+        }
+        drawOrder[j] = key;
+    }
+    for (obj = 0; obj <= guardian; obj++) {
+        if (drawOrder[obj] == 0) { heroRank = obj; continue; }
+        if (drawOrder[obj] == guardian) {
+            sx = (s16)areaGuardianX[curArea] * CELL + 8 - FIELD_ANCHOR_X - camX;
+            sy = (s16)areaGuardianY[curArea] * CELL + 8 - FIELD_ANCHOR_Y - camY;
+            if (!present || sx <= -32 || sx >= SCR_W || sy <= -32 || sy >= SCR_H) {
+                oamSetEx((u16)(obj << 2), OBJ_SMALL, OBJ_HIDE);
+                continue;
+            }
+            oamSetEx((u16)(obj << 2), OBJ_LARGE, OBJ_SHOW);
+            oamSet((u16)(obj << 2), (u16)sx, (u16)sy, 2, 0, 0,
+                   FIELD_GUARDIAN_NAME, fieldGuardianPal[curArea]);
+            continue;
+        }
+        i = drawOrder[obj] - 1;
+        sx = (s16)npcPX[i] + 8 - FIELD_ANCHOR_X - camX;
+        sy = (s16)npcPY[i] + 8 - FIELD_ANCHOR_Y - camY;
         /* Off screen costs an OAM slot and a line's worth of the 32-OBJ
          * budget for nothing. A region is 512 dots across and the window is
          * 256, so most of them are outside it at any time. */
-        if (sx < -CELL || sx >= SCR_W || sy < -CELL || sy >= SCR_H)
+        if (sx <= -32 || sx >= SCR_W || sy <= -32 || sy >= SCR_H) {
+            oamSetEx((u16)(obj << 2), OBJ_SMALL, OBJ_HIDE);
             continue;
+        }
 
         flip = 0;
         switch (npcDir[i]) {
@@ -251,14 +294,16 @@ void npcDraw(s16 camX, s16 camY) {
             pose = POSE_DOWN;
             break;
         }
-        name = sprNpcName[npcKind[i] * 6 + pose * 2 + npcFrame[i]];
+        name = fieldNpc[npcKind[i] * 6 + pose * 2 + npcFrame[i]];
 
+        /* SetEx's SHOW clears X's high bit. Set the signed position last so
+         * partly visible sprites at the left edge do not wrap to the right. */
+        oamSetEx((u16)(obj << 2), OBJ_LARGE, OBJ_SHOW);
         oamSet((u16)(obj << 2), (u16)sx, (u16)sy, 2, flip, 0,
                name, sprNpcPal[npcKind[i]]);
-        oamSetEx((u16)(obj << 2), OBJ_SMALL, OBJ_SHOW);
-        obj++;
     }
 
+    obj = guardian + 1;
     while (obj < npcObjUsed) {
         oamSet((u16)(obj << 2), 0, OAM_PARK_Y, 2, 0, 0, 0, 0);
         oamSetEx((u16)(obj << 2), OBJ_SMALL, OBJ_HIDE);

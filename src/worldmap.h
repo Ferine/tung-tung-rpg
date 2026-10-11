@@ -5,6 +5,9 @@
 #define MAP_W 32
 #define MAP_H 32
 
+#define FIELD_CACHE_TILES 1024
+#define FIELD_CHUNK_BYTES 16384
+
 #define COL_BLOCK 0x01
 #define COL_ENC   0x02
 #define COL_TRIG  0x04
@@ -59,6 +62,9 @@ static const u8 areaExitY[AREA_COUNT * 4] = {
       8,   0,   0,   0,
 };
 
+static const u8 areaGuardianX[AREA_COUNT] = {255, 255, 16, 14, 15, 16, 16};
+static const u8 areaGuardianY[AREA_COUNT] = {255, 255, 15, 13, 11, 8, 4};
+
 /* Sleepwalkers. Area a owns npcAreaFirst[a] up to
  * npcAreaFirst[a + 1]; see npc.c. */
 #define NPC_TOTAL 22
@@ -67,14 +73,14 @@ static const u8 npcAreaFirst[AREA_COUNT + 1] = {
     0, 6, 9, 12, 15, 17, 20, 22
 };
 static const u8 npcHomeX[NPC_TOTAL] = {
-     13,  18,  21,   9,  22,  27,   6,   4,
-     28,   9,   4,   3,   9,  12,   5,   3,
-     23,   9,  18,  24,  16,  10,
+     21,  17,  21,  10,   7,  27,   6,   4,
+     28,  17,  18,   8,   9,  12,   5,   8,
+     14,  26,   7,  15,  16,  10,
 };
 static const u8 npcHomeY[NPC_TOTAL] = {
-     15,  17,  21,   6,  25,  16,  11,   7,
-      8,  19,  19,  21,  12,  24,   6,  10,
-     22,  17,  15,  15,  18,  23,
+     10,  14,  17,  19,  25,  14,  11,   7,
+      8,  11,  15,  16,  12,  24,   6,   8,
+     21,  15,  26,   7,  18,  23,
 };
 static const u8 npcKindAt[NPC_TOTAL] = {
       0,   0,   0,   0,   1,   2,   0,   1,
@@ -90,36 +96,92 @@ extern char area_village_map;
 extern char area_village_col;
 extern char area_village_pal;
 extern char area_village_anm;
+extern char area_village_fx;
+extern char area_village_pic1;
+extern char area_village_pic2;
+extern char area_village_pic3;
+extern char area_village_pic4;
+extern char area_village_pic5;
+extern char area_village_pic6;
+extern char area_village_pic7;
 extern char area_fields_pic;
 extern char area_fields_map;
 extern char area_fields_col;
 extern char area_fields_pal;
 extern char area_fields_anm;
+extern char area_fields_fx;
+extern char area_fields_pic1;
+extern char area_fields_pic2;
+extern char area_fields_pic3;
+extern char area_fields_pic4;
+extern char area_fields_pic5;
+extern char area_fields_pic6;
+extern char area_fields_pic7;
 extern char area_forest_pic;
 extern char area_forest_map;
 extern char area_forest_col;
 extern char area_forest_pal;
 extern char area_forest_anm;
+extern char area_forest_fx;
+extern char area_forest_pic1;
+extern char area_forest_pic2;
+extern char area_forest_pic3;
+extern char area_forest_pic4;
+extern char area_forest_pic5;
+extern char area_forest_pic6;
+extern char area_forest_pic7;
 extern char area_shore_pic;
 extern char area_shore_map;
 extern char area_shore_col;
 extern char area_shore_pal;
 extern char area_shore_anm;
+extern char area_shore_fx;
+extern char area_shore_pic1;
+extern char area_shore_pic2;
+extern char area_shore_pic3;
+extern char area_shore_pic4;
+extern char area_shore_pic5;
+extern char area_shore_pic6;
+extern char area_shore_pic7;
 extern char area_salt_pic;
 extern char area_salt_map;
 extern char area_salt_col;
 extern char area_salt_pal;
 extern char area_salt_anm;
+extern char area_salt_fx;
+extern char area_salt_pic1;
+extern char area_salt_pic2;
+extern char area_salt_pic3;
+extern char area_salt_pic4;
+extern char area_salt_pic5;
+extern char area_salt_pic6;
+extern char area_salt_pic7;
 extern char area_fortress_pic;
 extern char area_fortress_map;
 extern char area_fortress_col;
 extern char area_fortress_pal;
 extern char area_fortress_anm;
+extern char area_fortress_fx;
+extern char area_fortress_pic1;
+extern char area_fortress_pic2;
+extern char area_fortress_pic3;
+extern char area_fortress_pic4;
+extern char area_fortress_pic5;
+extern char area_fortress_pic6;
+extern char area_fortress_pic7;
 extern char area_hush_pic;
 extern char area_hush_map;
 extern char area_hush_col;
 extern char area_hush_pal;
 extern char area_hush_anm;
+extern char area_hush_fx;
+extern char area_hush_pic1;
+extern char area_hush_pic2;
+extern char area_hush_pic3;
+extern char area_hush_pic4;
+extern char area_hush_pic5;
+extern char area_hush_pic6;
+extern char area_hush_pic7;
 
 static u8 *areaPic(u8 a) {
     switch (a) {
@@ -216,11 +278,95 @@ static u8 *areaAnm(u8 a) {
     }
 }
 
+static u8 *areaFx(u8 a) {
+    switch (a) {
+    case AREA_VILLAGE:
+        return (u8 *)&area_village_fx;
+    case AREA_FIELDS:
+        return (u8 *)&area_fields_fx;
+    case AREA_FOREST:
+        return (u8 *)&area_forest_fx;
+    case AREA_SHORE:
+        return (u8 *)&area_shore_fx;
+    case AREA_SALT:
+        return (u8 *)&area_salt_fx;
+    case AREA_FORTRESS:
+        return (u8 *)&area_fortress_fx;
+    default:
+        return (u8 *)&area_hush_fx;
+    }
+}
+
+/* Each source strip is 8 rows / 16KB, inside one LoROM bank. */
+static u8 *areaStrip(u8 a, u8 strip) {
+    switch ((u16)a * 8 + strip) {
+    case 0: return (u8 *)&area_village_pic;
+    case 1: return (u8 *)&area_village_pic1;
+    case 2: return (u8 *)&area_village_pic2;
+    case 3: return (u8 *)&area_village_pic3;
+    case 4: return (u8 *)&area_village_pic4;
+    case 5: return (u8 *)&area_village_pic5;
+    case 6: return (u8 *)&area_village_pic6;
+    case 7: return (u8 *)&area_village_pic7;
+    case 8: return (u8 *)&area_fields_pic;
+    case 9: return (u8 *)&area_fields_pic1;
+    case 10: return (u8 *)&area_fields_pic2;
+    case 11: return (u8 *)&area_fields_pic3;
+    case 12: return (u8 *)&area_fields_pic4;
+    case 13: return (u8 *)&area_fields_pic5;
+    case 14: return (u8 *)&area_fields_pic6;
+    case 15: return (u8 *)&area_fields_pic7;
+    case 16: return (u8 *)&area_forest_pic;
+    case 17: return (u8 *)&area_forest_pic1;
+    case 18: return (u8 *)&area_forest_pic2;
+    case 19: return (u8 *)&area_forest_pic3;
+    case 20: return (u8 *)&area_forest_pic4;
+    case 21: return (u8 *)&area_forest_pic5;
+    case 22: return (u8 *)&area_forest_pic6;
+    case 23: return (u8 *)&area_forest_pic7;
+    case 24: return (u8 *)&area_shore_pic;
+    case 25: return (u8 *)&area_shore_pic1;
+    case 26: return (u8 *)&area_shore_pic2;
+    case 27: return (u8 *)&area_shore_pic3;
+    case 28: return (u8 *)&area_shore_pic4;
+    case 29: return (u8 *)&area_shore_pic5;
+    case 30: return (u8 *)&area_shore_pic6;
+    case 31: return (u8 *)&area_shore_pic7;
+    case 32: return (u8 *)&area_salt_pic;
+    case 33: return (u8 *)&area_salt_pic1;
+    case 34: return (u8 *)&area_salt_pic2;
+    case 35: return (u8 *)&area_salt_pic3;
+    case 36: return (u8 *)&area_salt_pic4;
+    case 37: return (u8 *)&area_salt_pic5;
+    case 38: return (u8 *)&area_salt_pic6;
+    case 39: return (u8 *)&area_salt_pic7;
+    case 40: return (u8 *)&area_fortress_pic;
+    case 41: return (u8 *)&area_fortress_pic1;
+    case 42: return (u8 *)&area_fortress_pic2;
+    case 43: return (u8 *)&area_fortress_pic3;
+    case 44: return (u8 *)&area_fortress_pic4;
+    case 45: return (u8 *)&area_fortress_pic5;
+    case 46: return (u8 *)&area_fortress_pic6;
+    case 47: return (u8 *)&area_fortress_pic7;
+    case 48: return (u8 *)&area_hush_pic;
+    case 49: return (u8 *)&area_hush_pic1;
+    case 50: return (u8 *)&area_hush_pic2;
+    case 51: return (u8 *)&area_hush_pic3;
+    case 52: return (u8 *)&area_hush_pic4;
+    case 53: return (u8 *)&area_hush_pic5;
+    case 54: return (u8 *)&area_hush_pic6;
+    case 55: return (u8 *)&area_hush_pic7;
+    default: return (u8 *)&area_village_pic;
+    }
+}
+
+static const u8 areaFxCount[AREA_COUNT] = {16, 16, 16, 16, 12, 16, 16};
+
 /* Palette sets in a region's animation loop; areaAnm()
  * holds that many 256-byte copies of CGRAM 0-7 -- see
  * ppuAnimateLand. Zero means the region stands still. */
 static const u8 areaAnimFrames[AREA_COUNT] = {
-    4, 4, 4, 4, 0, 4, 4
+    0, 0, 0, 0, 0, 0, 0
 };
 
 static const u8 areaMusic[AREA_COUNT] = {

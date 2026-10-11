@@ -32,6 +32,14 @@ sprites_pal: .incbin "assets/sprites.pal"
 sprites_pal_end:
 .ends
 
+; Field actors replace the battle sheet while walking. The loader skips the
+; portrait's four 128-byte rows, allowing a victory dialogue to keep its face.
+.section ".rodata_fieldactors" superfree
+fieldactors_pic: .incbin "assets/fieldactors.pic"
+fieldactors_pal: .incbin "assets/fieldactors.pal"
+fieldguardians_pic: .incbin "assets/fieldguardians.pic"
+.ends
+
 ; The streamed half of the cast: eighteen designs, six of them 64x64. One
 ; section so it lands in one bank -- the C indexes it with a 16-bit offset
 ; added to the base, which only holds if base and blob share a bank.

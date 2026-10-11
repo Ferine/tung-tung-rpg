@@ -40,6 +40,8 @@ jobs:
         run: |
           python checktext.py
           python checkfaces.py
+          python checkgfx.py
+          python checkfields.py
 
       - name: Regenerate deterministic non-audio assets
         run: |
@@ -52,3 +54,52 @@ jobs:
 
       - name: Require generated assets to be current
         run: git diff --exit-code
+
+  rom:
+    name: Build ROM and play regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out game
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.14'
+      - name: Check out pinned SNES toolchain
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: alekmaul/pvsneslib
+          ref: e090f001ccffdc0fb69f479a8c9703e30d07f6b1
+          path: build/pvsneslib
+          submodules: recursive
+          persist-credentials: false
+      - name: Check out pinned emulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: libretro/snes9x
+          ref: 5a40cd5514e63e691e39141d64267798357a1424
+          path: build/snes9x
+          persist-credentials: false
+      - name: Install build and capture dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake doxygen libpng-dev zlib1g-dev
+          python -m pip install Pillow==12.3.0
+      - name: Build toolchain and emulator
+        run: |
+          export PVSNESLIB_HOME="$GITHUB_WORKSPACE/build/pvsneslib"
+          make -C "$PVSNESLIB_HOME" compiler tools -j2
+          make -C "$PVSNESLIB_HOME/pvsneslib" -j2
+          make -C build/snes9x/libretro -j2
+      - name: Build and validate ROM
+        run: PVSNESLIB_HOME="$GITHUB_WORKSPACE/build/pvsneslib" make -j2
+      - name: Play regression scenarios
+        env:
+          MESEN_S_CORE: ${{ github.workspace }}/build/snes9x/libretro/snes9x_libretro.so
+        run: |
+          python -u test_game.py
+          python -u test_quests.py
+          python -u test_campaign.py

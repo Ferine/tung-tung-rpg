@@ -96,7 +96,7 @@ SKIES = [
 # The field is top-down, so it gets a plain vignette rather than a sky.
 # Gentle: the field is lit by the same moon everywhere and a strong
 # vignette on a top-down map reads as a bug rather than as depth.
-FIELD_SKY = dict(horizon=112, top=5, floor_amt=4, band=0)
+FIELD_SKY = dict(horizon=112, top=1, floor_amt=1, band=0)
 
 # The title's own, so it does not inherit whichever region was loaded last.
 # Gentle at the top: the gold logo is BG1 too, and a battle sky's subtract
@@ -109,7 +109,10 @@ WAVE_PHASES = 8
 def generate_hdma():
     total = 0
     for name, kw in SKIES:
-        total += g.write('sky_%s.tbl' % name, sky(**kw))
+        # Full paintings already contain their lighting. A strong subtract
+        # intended for the old flat sky would crush their modeled shadows.
+        total += g.write('sky_%s.tbl' % name,
+                         sky(kw['horizon'], top=1, floor_amt=1))
     total += g.write('sky_field.tbl', sky(**FIELD_SKY))
     total += g.write('sky_title.tbl', sky(**TITLE_SKY))
 

@@ -70,6 +70,7 @@ void globalsInit(void) {
 
     act = 0;
     storyFlags = 0;
+    questInit();
 
     partyCount = 1;
     gold = 0;

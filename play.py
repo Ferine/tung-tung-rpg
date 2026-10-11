@@ -12,6 +12,8 @@ core.lib.retro_get_memory_data.restype = ctypes.c_void_p
 core.lib.retro_get_memory_data.argtypes = [ctypes.c_uint]
 core.load('tungtung.sfc')
 ptr = core.lib.retro_get_memory_data(2)
+if not ptr:
+    raise SystemExit('The libretro core must expose WRAM; use Snes9x for regression tests.')
 SYM = {}
 for line in open('tungtung.sym'):
     p = line.split()
@@ -161,9 +163,32 @@ def report(tag):
              list(pk('pcLevel', 5)), state()))
 
 
+def battle_command(command, parameter=None, target=None):
+    """Choose only through controller input, including a specific ally target."""
+    prefix='tccs_src/battle.asm_'
+    def push(button):
+        core.press([button]); core.run(2); core.press([]); core.run(3)
+    for _ in range(5):
+        if pk(prefix+'cmdIndex')[0]==command: break
+        push('down')
+    push('a')
+    if parameter is not None and pk(prefix+'bstate')[0] in (3,4):
+        for _ in range(8):
+            if pk(prefix+'subIndex')[0]==parameter: break
+            push('down')
+        push('a')
+    if pk(prefix+'bstate')[0]==5:
+        if target is not None:
+            for _ in range(6):
+                if pk(prefix+'targetIndex')[0]==target: break
+                push('right')
+        push('a')
+
+
 def smart_fight(limit=2500):
-    """Plays the battle the way the design intends: Tung answers a sleeping
-    party with SAHUR CALL, everybody else attacks."""
+    """Use available recovery, waking and learned skills through ordinary input.
+    Empty item stacks never trap the harness in ITEM forever. No stat edits.
+    """
     B = 'tccs_src/battle.asm_'
     for _ in range(limit):
         st = state()
@@ -172,20 +197,31 @@ def smart_fight(limit=2500):
         bs = pk(B + 'bstate')[0]
         if bs == 2:                       # command window open
             actor = pk(B + 'actor')[0]
-            asleep = any(s & 0x02 for s in pk('pcStatus', pk('partyCount')[0]))
-            low = hp_frac() < 0.28
-            if actor == 0 and asleep:
-                core.press(['down']); core.run(4); core.press([]); core.run(6)
-                core.press(['a']); core.run(4); core.press([]); core.run(8)
-                core.press(['a']); core.run(4); core.press([]); core.run(10)
-                continue
-            if low:
-                # ITEM -> first entry -> a target
-                core.press(['down']); core.run(4); core.press([]); core.run(4)
-                core.press(['down']); core.run(4); core.press([]); core.run(6)
-                for _k in range(3):
-                    core.press(['a']); core.run(4); core.press([]); core.run(8)
-                continue
+            count=pk('partyCount')[0]
+            status=list(pk('pcStatus',count)); items=list(pk('itemCount',8))
+            hp=u16a('pcHP',count); maximum=u16a('pcHPMax',count); mp=u16a('pcMP',count)
+            alive=[i for i in range(count) if not status[i]&1]
+            target=min(alive,key=lambda i:hp[i]/maximum[i])
+            low=hp[target]/maximum[target]<.45
+            dead=next((i for i in range(count) if status[i]&1),None)
+            if actor==0 and any(s&2 for s in status) and mp[0]>=8:
+                battle_command(1,0)
+            elif dead is not None and items[6]:
+                battle_command(2,6,dead)
+            elif actor==3 and pk('pcLevel',5)[3]>=14 and mp[actor]>=22 and sum(hp[i]/maximum[i]<.75 for i in alive)>=3:
+                battle_command(1,1)  # CURAGA: respond to the late bosses' party-wide attacks
+            elif low and actor==3 and mp[actor]>=6:
+                battle_command(1,0,target)  # CURA
+            elif low and (items[1] or items[0] or items[7] or items[2]):
+                item=1 if items[1] and maximum[target]-hp[target]>90 else (0 if items[0] else (7 if items[7] else (1 if items[1] else 2)))
+                battle_command(2,item,target)
+            elif pk('battleIsBoss')[0] and mp[actor]>=(6,6,8,99,9)[actor] and actor!=3:
+                battle_command(1,1 if actor==0 else 0)
+            elif pk('battleIsBoss')[0] and (items[5] or items[4]):
+                battle_command(2,5 if items[5] else 4)
+            else:
+                battle_command(0)
+            continue
         core.press(['a']); core.run(3); core.press([]); core.run(11)
     return state()
 
@@ -206,6 +242,10 @@ def travel(tx, ty, budget=60):
             smart_fight()
             core.run(60)
             clear_text()
+        elif state() == 6 or pk('pendingState')[0] != 255:
+            # The encounter first enters its Mode 7 transition. Let that
+            # settle before deciding that navigation has hit a dead end.
+            core.run(180)
         elif busy():
             clear_text()
         else:

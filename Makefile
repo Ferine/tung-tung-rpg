@@ -63,6 +63,8 @@ checksyms: $(ROMNAME).sfc
 	@python3 checkfaces.py
 	@python3 checkbank.py
 	@python3 checkrom.py $(ROMNAME).sfc
+	@python3 checkgfx.py --symbols $(ROMNAME).sym
+	@python3 checkfields.py
 
 # Everything data.asm .incbin's. All of it is written by the Python
 # generators into assets/, not by make, so there is no rule to build them --
@@ -71,7 +73,7 @@ ASSETDIR := assets
 
 AREAS := village fields forest shore salt fortress hush
 AREA_ASSETS := $(foreach a,$(AREAS),\
-                 area_$(a).pic area_$(a).map area_$(a).col area_$(a).pal)
+                 area_$(a).pic area_$(a).map area_$(a).col area_$(a).pal area_$(a).fx)
 
 BACKDROPS := night forest shore salt iron void
 BG_ASSETS := $(foreach b,$(BACKDROPS),bg_$(b).pic bg_$(b).map bg_$(b).pal)
@@ -83,12 +85,14 @@ MODE7_ASSETS := mode7_warp.map mode7_warp.pic mode7_warp.pal
 
 ASSETS := $(addprefix $(ASSETDIR)/,\
             sprites.pic sprites.pal enemies.pic portraits.pic \
+            fieldactors.pic fieldactors.pal fieldguardians.pic \
             font.pic font.pal fontalert.pal fontgood.pal \
             title.pic title.map title.pal \
             $(HDMA_ASSETS) $(MODE7_ASSETS) \
             $(AREA_ASSETS) $(BG_ASSETS) bg_dawn.pal)
 
 data.obj: hdr.asm worlddata.asm bgdata.asm hdmadata.asm $(ASSETS)
+fielddma.obj: hdr.asm fielddma.asm
 mode7data.obj: hdr.asm $(addprefix $(ASSETDIR)/,$(MODE7_ASSETS))
 
 $(ASSETS):
@@ -102,7 +106,7 @@ $(ASSETS):
 # code that indexes it.
 PSFILES := $(CFILES:.c=.ps)
 $(PSFILES): src/ttrpg.h src/gfxmap.h src/sprmap.h src/worldmap.h \
-            src/bgmap.h src/hdmamap.h
+            src/bgmap.h src/hdmamap.h src/titlemap.h src/fieldactormap.h
 
 # res/music.h carries the order ranges of the fourteen themes and is written by
 # gen_music.py, not by make -- they have to come from the module that defines

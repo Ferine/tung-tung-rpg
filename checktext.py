@@ -34,6 +34,17 @@ def main():
                 w = sum(1 if c == ' ' else 2 for c in s)
                 if x + w > COLS:
                     bad.append((path, n, x, w, 'bigPut ' + s))
+        # Journal text is returned by small helpers, then drawn at column 2.
+        # Its right border is column 31, so those computed calls need coverage.
+        source = open(path).read()
+        for function in ('storyObjective', 'questName', 'questStatus', 'questHint', 'questReward'):
+            body = re.search(r'const char \*'+function+r'\([^)]*\) \{(.*?)^\}', source, re.S | re.M)
+            if body:
+                for literal in re.finditer(r'"([^"\\]*)"',body.group(1)):
+                    value = literal.group(1)
+                    if len(value)>29:
+                        n=source[:body.start(1)+literal.start()].count('\n')+1
+                        bad.append((path,n,2,len(value),value))
     if not bad:
         return 0
     print("text runs off the %d-column screen:" % COLS, file=sys.stderr)
