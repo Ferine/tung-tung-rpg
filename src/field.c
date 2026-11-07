@@ -200,16 +200,20 @@ void fieldUpdate(void) {
     u8 mx, my;
     u8 flags, ev;
 
+    /* The menu first: the only message that can be open over it is one it
+     * opened itself, and closing that erases rows out of the menu's footer --
+     * which only the menu knows to put back. Neither the menu nor the shop
+     * can open while a message or a scene is running. */
+    if (menuActive) {
+        menuUpdate();
+        return;
+    }
     if (msgActive) {
         msgUpdate();
         return;
     }
     if (storyBusy()) {
         storyUpdate();
-        return;
-    }
-    if (menuActive) {
-        menuUpdate();
         return;
     }
     if (padTrig & KEY_START) {

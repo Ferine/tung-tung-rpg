@@ -11,6 +11,10 @@ All notable public releases are documented here.
   autosave quest changes and fully restore fallen companions; inns revive too.
 - Restored ordinary fortress encounters. Added a complete new-game campaign
   playthrough without quest rewards, plus sidequest and save regressions in CI.
+- Fixed: a guardian's surrender scene opened its first line with no window;
+  saving from the field menu drew the message under the footer and left a
+  hole in it on closing; CAPPUCCINO and TONICO could be spent on a fallen
+  companion from the field menu.
 
 - Prerendered field and battle environments. Fields stream all 4096 tiles
   through a 34×30 cache, preserving spatial detail at 60 Hz. Authored depth

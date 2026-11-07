@@ -294,6 +294,9 @@ static void drawLayout(void) {
         drawShop();
         break;
     }
+    /* SAVE opens a message and repaints the layout in the same frame; without
+     * this the footer is drawn over the box and the text types onto GOLD. */
+    msgRepaint();
 }
 
 static void cursorColumn(u8 x, u8 y0, u8 dy, u8 n, u8 sel) {
@@ -340,13 +343,17 @@ static void useItem(u8 id, u8 target) {
         audioSfx(SFX_ERROR);
         return;
     }
+    /* Everything aimed at one person needs them alive, except the one thing
+     * made for the fallen. COFFEE and TONIC used to take a corpse: the item
+     * was spent, and COFFEE left them DEAD on 40 HP. */
+    if (itemTargetsAlly(id) && id != ITEM_ELIXIR
+        && (pcStatus[target] & STAT_DEAD)) {
+        audioSfx(SFX_ERROR);
+        return;
+    }
     switch (id) {
     case ITEM_HERB:
     case ITEM_SALVE:
-        if (pcStatus[target] & STAT_DEAD) {
-            audioSfx(SFX_ERROR);
-            return;
-        }
         pcHP[target] += (id == ITEM_HERB) ? 90 : 320;
         if (pcHP[target] > pcHPMax[target])
             pcHP[target] = pcHPMax[target];
@@ -418,12 +425,32 @@ static void buy(void) {
 
 /* ---- update ------------------------------------------------------------ */
 
+static void menuRefresh(void) {
+    if (dirty || mode != lastMode || who != lastWho) {
+        lastMode = mode;
+        lastWho = who;
+        lastCur = 255;
+        dirty = 0;
+        drawLayout();
+    }
+    if (cur != lastCur) {
+        lastCur = cur;
+        drawCursor();
+    }
+}
+
 void menuUpdate(void) {
     u16 t;
     u8 n, i;
 
     if (msgActive) {
-        msgUpdate();
+        /* Closing erases the box's rows, which are the footer's rows. Put the
+         * layout back in the same frame, and do not let the press that closed
+         * the box reach the list underneath. */
+        if (!msgUpdate()) {
+            dirty = 1;
+            menuRefresh();
+        }
         return;
     }
 
@@ -642,15 +669,5 @@ void menuUpdate(void) {
         break;
     }
 
-    if (dirty || mode != lastMode || who != lastWho) {
-        lastMode = mode;
-        lastWho = who;
-        lastCur = 255;
-        dirty = 0;
-        drawLayout();
-    }
-    if (cur != lastCur) {
-        lastCur = cur;
-        drawCursor();
-    }
+    menuRefresh();
 }

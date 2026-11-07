@@ -514,9 +514,15 @@ static void msgDrawFrom(u8 from) {
     }
 }
 
+/* The whole box back -- its frame, the portrait's frame and every character
+ * revealed so far -- for a screen that has just rebuilt its layout from
+ * textClear() with a message still open. */
 void msgRepaint(void) {
     if (!msgActive)
         return;
+    winBox(1, msgY, MSG_W, MSG_LINES + 2);
+    if (msgFace)
+        winBox(1, faceBoxRow, FACE_BOX_W, FACE_BOX_H);
     msgDrawFrom(0);
     msgDrawn = msgShown;
 }

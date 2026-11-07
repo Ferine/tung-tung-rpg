@@ -83,6 +83,13 @@ def tap(button):
     p.core.press([]); p.core.run(60)
 
 
+WIN_TL, WIN_T = 0xE0, 0xE1     # gfxmap.h
+
+
+def text_cell(x, y):
+    return p.pk('txtMap', 2048)[(y*32+x)*2]
+
+
 def report(message):
     RESULTS.append(message)
     print(message, flush=True)
@@ -281,6 +288,31 @@ def old_guardians():
     report('Legacy fortress save on corrected scenery relocates to safe floor')
 
 
+def menu_messages():
+    """A message opened from the menu keeps its window and gives the footer back
+    when it closes; single-target items refuse the fallen, except ELIXIR."""
+    boot(status=(0,1,0,0,0), hp=(9999,0,9999,9999,9999))
+    tap('start')
+    for _ in range(3): tap('down')          # SAVE
+    tap('a')
+    assert p.pk('msgActive')[0] and text_cell(1,22)==WIN_TL, 'menu message drawn under the footer'
+    tap('a')
+    assert p.pk('menuActive')[0] and not p.pk('msgActive')[0], 'closing the message left the menu'
+    assert text_cell(1,22)==WIN_T and text_cell(2,24)==ord('G')-32, 'closed message left a hole in the footer'
+    for _ in range(3): tap('up')            # ITEM
+    tap('a')
+    for item in (2, 3):                     # CAPPUCCINO, TONICO
+        for _ in range(8):
+            if p.pk('tccs_src/menu.asm_cur')[0]==item: break
+            tap('down')
+        assert p.pk('tccs_src/menu.asm_cur')[0]==item, ('item cursor',item)
+        before = p.pk('itemCount',8)[item]
+        tap('a'); tap('down'); tap('a')     # aimed at member 1, who is dead
+        assert p.pk('itemCount',8)[item]==before, ('item spent on the fallen',item)
+        assert p.u16a('pcHP',2)[1]==0 and p.pk('pcStatus',2)[1]&1, ('fallen member changed',item)
+    report('Menu messages keep their window and restore the footer; items refuse the fallen')
+
+
 def campaign():
     portraits_before = PORTRAIT_CHECKS
     boot(act=1,flags=1,count=1,area=2,hx=16,hy=16)
@@ -302,6 +334,9 @@ def campaign():
         assert p.state()==3, ('guardian did not engage',key)
         p.smart_fight(12000); p.core.run(180)
         if p.state()==2:
+            # The surrender scene starts on the field side of the fade; opened
+            # from the battle screen, the field's arrival wiped its window.
+            assert p.pk('msgActive')[0] and text_cell(1,22)==WIN_TL, ('victory dialogue has no window',key)
             check_actor_vram()
             p.core.image().save(OUT/('victory-'+key+'.png'))
         clear_field_text(250); p.core.run(180)
@@ -326,5 +361,6 @@ if __name__=='__main__':
     actor_motion()
     depth_and_animation()
     old_guardians()
+    menu_messages()
     campaign()
     print('All ROM regressions passed.',flush=True)

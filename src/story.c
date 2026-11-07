@@ -92,11 +92,18 @@ u8 storyGuardianPresent(void) {
 static u8 scene;
 static u8 step;
 
+/* A scene waiting for the field to be entered. Anything decided on the far
+ * side of a state change -- the opening, a guardian's surrender -- is queued
+ * here rather than played: enterState() clears the text layer on arrival, so a
+ * box opened before the fade loses its frame and types onto the bare map. */
+static u8 arrival;
+
 void storyInit(void) {
     act = ACT_VILLAGE;
     storyFlags = 0;
     scene = SC_NONE;
     step = 0;
+    arrival = SC_NONE;
     questInit();
 }
 
@@ -491,7 +498,17 @@ void storyPlay(u8 sc) {
 }
 
 void storyBegin(void) {
-    storyPlay(SC_OPENING);
+    arrival = SC_OPENING;
+}
+
+/* Called by enterState(ST_FIELD) once the region is on screen. */
+void storyArrive(void) {
+    u8 sc;
+
+    sc = arrival;
+    arrival = SC_NONE;
+    if (sc != SC_NONE)
+        storyPlay(sc);
 }
 
 u8 storyBusy(void) {
@@ -591,23 +608,25 @@ static void bossHere(void) {
     }
 }
 
+/* Called from the battle screen. The flag lands now, so the guardian's figure
+ * is already gone when the field fades in; the scene waits for the field. */
 void storyBossWon(void) {
     storyFlags |= guardianFlag();
     switch (curArea) {
     case AREA_FOREST:
-        storyPlay(SC_PATAPIM_W);
+        arrival = SC_PATAPIM_W;
         break;
     case AREA_SHORE:
-        storyPlay(SC_TRALA_W);
+        arrival = SC_TRALA_W;
         break;
     case AREA_SALT:
-        storyPlay(SC_LIRILI_W);
+        arrival = SC_LIRILI_W;
         break;
     case AREA_FORTRESS:
-        storyPlay(SC_BOMBARD_W);
+        arrival = SC_BOMBARD_W;
         break;
     case AREA_HUSH:
-        storyPlay(SC_SILENZIO_W);
+        arrival = SC_SILENZIO_W;
         break;
     default:
         break;

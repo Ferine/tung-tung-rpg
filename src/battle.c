@@ -1658,10 +1658,7 @@ static void drawLayout(void) {
         textPut(10, 11, "GOLD");
         textNum(17, 11, winGold, 5);
     }
-    if (msgActive) {
-        winBox(1, MSG_Y, 30, 5);
-        msgRepaint();
-    }
+    msgRepaint();               /* frame and text, at the row it opened on */
 }
 
 void battleDraw(void) {

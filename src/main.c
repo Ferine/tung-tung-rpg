@@ -19,7 +19,6 @@ static void updateEnding(void);
 static void updateMode7Warp(void);
 static void drawTitle(void);
 
-static u8 openingPending;
 static u8 mode7WarpTimer;
 
 /* ---- input ------------------------------------------------------------- */
@@ -90,10 +89,7 @@ static void enterState(u8 s) {
 
     case ST_FIELD:
         fieldEnter();
-        if (openingPending) {
-            openingPending = 0;
-            storyBegin();
-        }
+        storyArrive();
         break;
 
     case ST_BATTLE:
@@ -221,7 +217,7 @@ static void updateTitle(void) {
             partyInit();
             storyInit();
             fieldInit();
-            openingPending = 1;
+            storyBegin();
             requestState(ST_FIELD);
         }
     }
@@ -332,7 +328,6 @@ int main(void) {
     partyInit();
     storyInit();
     fieldInit();
-    openingPending = 0;
     titleHasSave = saveExists();
 
     gameState = ST_TITLE;

@@ -301,7 +301,8 @@ void storyEvent(u8 ev);
 u8 storyMayLeave(u8 area, u8 ev);
 void storyBossWon(void);
 void storyPlay(u8 scene);
-void storyBegin(void);
+void storyBegin(void);          /* queues the opening for storyArrive */
+void storyArrive(void);         /* plays a queued scene; enterState(ST_FIELD) */
 const char *storyActName(void);
 const char *storyObjective(u8 line);
 
